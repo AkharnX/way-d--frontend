@@ -1,34 +1,219 @@
-# 🚀 Way-d - Application de Rencontres
+# 💖 Way-d - Application de Rencontres Moderne
 
-## ✨ Application Prête à l'Emploi
+<p align="center">
+  <img src="public/logo-name-blue.png" alt="Way-d Logo" width="300"/>
+</p>
 
-Way-d est une application de rencontres moderne et complète, développée avec React + TypeScript et une architecture microservices robuste.
+<p align="center">
+  <strong>🚀 Application de rencontres complète et moderne</strong><br>
+  Développée avec React, TypeScript et une architecture microservices
+</p>
 
-## 🎯 Statut : Production Ready ✅
+<p align="center">
+  <a href="#-démarrage-rapide">Démarrage</a> •
+  <a href="#-fonctionnalités">Fonctionnalités</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-documentation">Documentation</a>
+</p>
 
-- ✅ **Frontend React/TypeScript** - Interface moderne et responsive
-- ✅ **Authentication sécurisée** - JWT avec refresh automatique
-- ✅ **Système de profils** - Création, modification, photos
-- ✅ **Découverte intelligente** - Filtrage avancé sans répétition
-- ✅ **Système d'interactions** - Like/Dislike avec matching
-- ✅ **Messages en temps réel** - Chat entre utilisateurs
-- ✅ **Navigation fluide** - UX optimisée sans cul-de-sac
+---
+
+## ✨ Statut du Projet
+
+🟢 **Production Ready** - Application complète et fonctionnelle
+
+| Component | Status | Description |
+|-----------|--------|-------------|
+| 🎨 **Frontend** | ✅ Complet | Interface React moderne et responsive |
+| 🔐 **Authentication** | ✅ Sécurisé | JWT avec refresh automatique |
+| 👤 **Profils** | ✅ Fonctionnel | Création, modification, photos |
+| 🎯 **Découverte** | ✅ Intelligent | Filtrage avancé sans répétition |
+| 💬 **Messages** | ✅ Temps réel | Chat entre utilisateurs |
+| 📱 **Mobile** | ✅ Responsive | Design mobile-first |
 
 ## 🚀 Démarrage Rapide
 
 ### Prérequis
-- Node.js 18+ 
-- npm ou yarn
-- Backend services (Auth, Profile, Interactions)
+- **Node.js** 18+ 
+- **npm** ou **yarn**
+- **Backend services** (Auth, Profile, Interactions)
 
-### Installation et Lancement
+### Installation
 
 ```bash
+# Cloner le repository
+git clone https://github.com/AkharnX/way-d--frontend.git
+cd way-d--frontend
+
 # Installation des dépendances
 npm install
 
 # Lancement en développement
-npm run dev
+./way-d.sh dev
+```
+
+🌐 **L'application sera disponible sur http://localhost:5173**
+
+## 🎯 Fonctionnalités
+
+### 🔐 **Authentification Sécurisée**
+- Login/Register avec validation
+- JWT avec refresh automatique
+- Vérification email
+- Gestion de session robuste
+
+### 👤 **Gestion des Profils**
+- Création de profil complet
+- Upload et gestion de photos
+- Informations personnelles sécurisées
+- Géolocalisation pour proximité
+
+### 🎯 **Découverte Intelligente**
+- Algorithme de matching avancé
+- Filtres par âge, distance, intérêts
+- Système like/dislike
+- Évite la répétition des profils
+
+### 💬 **Messagerie Temps Réel**
+- Chat instantané entre matches
+- Historique des conversations
+- Statut en ligne
+- Notifications push
+
+### 📱 **Experience Mobile**
+- Design responsive parfait
+- PWA (Progressive Web App)
+- Performance optimisée
+- Navigation intuitive
+
+## 🏗️ Architecture
+
+```
+Frontend (React + TypeScript)
+├── 🎨 Interface Moderne
+├── 🔄 State Management
+├── 📡 API Services
+└── 🎯 Component System
+
+Backend Microservices
+├── 🔐 Auth Service (Port 8080)
+├── 👤 Profile Service (Port 8081)
+└── 💬 Interactions Service (Port 8082)
+```
+
+### **Technologies Utilisées**
+
+| Catégorie | Technologies |
+|-----------|--------------|
+| **Frontend** | React 19, TypeScript, Tailwind CSS |
+| **Build** | Vite, PostCSS, ESLint |
+| **Routing** | React Router v6 |
+| **HTTP** | Axios, Proxy API |
+| **Icons** | Lucide React |
+| **Deployment** | PM2, Node.js |
+
+## 📊 Structure du Projet
+
+```
+way-d-frontend/
+├── 🎨 src/                    # Code source principal
+│   ├── components/           # Composants réutilisables
+│   ├── pages/               # Pages de l'application
+│   ├── services/            # Services API
+│   └── types/               # Types TypeScript
+├── 🚀 deployment/            # Scripts de déploiement
+├── 🧪 tests/                 # Tests automatisés
+├── 📚 docs/                  # Documentation
+├── 🛠️ scripts/               # Scripts de maintenance
+└── 📦 archive/               # Fichiers historiques
+```
+
+## 🎮 Scripts Disponibles
+
+### Script Principal `./way-d.sh`
+```bash
+./way-d.sh dev        # Démarrage développement
+./way-d.sh build      # Build production
+./way-d.sh deploy     # Déploiement PM2
+./way-d.sh test       # Exécution des tests
+./way-d.sh status     # Statut de l'application
+./way-d.sh help       # Aide complète
+```
+
+### Git Management `./git-push.sh`
+```bash
+./git-push.sh push "Message de commit"   # Push rapide
+./git-push.sh pull                       # Pull des changements
+./git-push.sh status                     # Statut Git
+```
+
+## 📱 Pages Principales
+
+| Page | Description | Status |
+|------|-------------|---------|
+| **🏠 Home** | Page d'accueil avec branding Way-d | ✅ |
+| **🔐 Login/Register** | Authentification utilisateur | ✅ |
+| **📊 Dashboard** | Tableau de bord personnel | ✅ |
+| **🎯 Discovery** | Découverte de profils | ✅ |
+| **👤 Profile** | Gestion du profil utilisateur | ✅ |
+| **💬 Messages** | Messagerie instantanée | ✅ |
+| **⚙️ Settings** | Paramètres et préférences | ✅ |
+
+## 🔧 Configuration
+
+### Variables d'Environnement
+```env
+VITE_API_AUTH_URL=http://localhost:8080
+VITE_API_PROFILE_URL=http://localhost:8081
+VITE_API_INTERACTIONS_URL=http://localhost:8082
+```
+
+### Ports par Défaut
+- **Frontend**: 5173
+- **Auth Service**: 8080
+- **Profile Service**: 8081
+- **Interactions Service**: 8082
+
+## 🧪 Tests
+
+```bash
+# Exécuter tous les tests
+./way-d.sh test
+
+# Tests spécifiques
+cd tests && ./run-tests.sh
+```
+
+## 📚 Documentation
+
+- 📖 [Guide de Démarrage Rapide](docs/QUICKSTART.md)
+- 🏗️ [Structure du Projet](PROJECT_STRUCTURE.md)
+- 🔧 [Guide de Maintenance](MAINTENANCE.md)
+- 🌐 [Configuration HTTPS](docs/HTTPS_LETSENCRYPT_CONFIG.md)
+- 🔌 [Configuration des Ports](docs/PORT_CONFIGURATION.md)
+
+## 🤝 Contribution
+
+1. Fork le projet
+2. Créer une branche feature (`git checkout -b feature/AmazingFeature`)
+3. Commit les changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrir une Pull Request
+
+## 📄 Licence
+
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
+
+## 👥 Équipe
+
+Développé avec ❤️ par l'équipe Way-d
+
+---
+
+<p align="center">
+  <strong>🚀 Prêt à lancer votre application de rencontres ?</strong><br>
+  <a href="#-démarrage-rapide">Commencez maintenant !</a>
+</p>
 
 # L'application sera accessible sur http://localhost:5173
 ```
