@@ -683,6 +683,65 @@ export const profileService = {
   deletePhotoUrl: async (photoUrl: string): Promise<void> => {
     await profileApi.delete('/photo', { data: { photo_url: photoUrl } });
   },
+
+  // Dynamic data endpoints for profile creation/editing
+  getInterestsSuggestions: async (): Promise<string[]> => {
+    try {
+      const response = await profileApi.get('/interests/suggestions');
+      return response.data.interests || [];
+    } catch (error) {
+      console.error('Error fetching interests suggestions:', error);
+      // Fallback to static data if backend fails
+      return [
+        'Voyage', 'Sport', 'Cinéma', 'Musique', 'Lecture', 'Cuisine', 'Art',
+        'Technologie', 'Nature', 'Photographie', 'Danse', 'Fitness', 'Gaming'
+      ];
+    }
+  },
+
+  getProfessionsSuggestions: async (): Promise<string[]> => {
+    try {
+      const response = await profileApi.get('/professions/suggestions');
+      return response.data.professions || [];
+    } catch (error) {
+      console.error('Error fetching professions suggestions:', error);
+      // Fallback to static data if backend fails
+      return [
+        'Étudiant(e)', 'Ingénieur(e)', 'Médecin', 'Professeur(e)', 'Commercial(e)',
+        'Artiste', 'Entrepreneur(e)', 'Avocat(e)', 'Infirmier(e)', 'Architecte',
+        'Designer', 'Développeur(euse)', 'Marketing', 'Consultant(e)', 'Autre'
+      ];
+    }
+  },
+
+  getEducationLevels: async (): Promise<string[]> => {
+    try {
+      const response = await profileApi.get('/education/suggestions');
+      return response.data.education_levels || [];
+    } catch (error) {
+      console.error('Error fetching education levels:', error);
+      // Fallback to static data if backend fails
+      return [
+        'Collège', 'Lycée', 'Bac+2', 'Bac+3', 'Bac+5', 'Master', 'Doctorat', 'Autre'
+      ];
+    }
+  },
+
+  getLookingForOptions: async (): Promise<Array<{ value: string; label: string }>> => {
+    try {
+      const response = await profileApi.get('/looking-for/options');
+      return response.data.options || [];
+    } catch (error) {
+      console.error('Error fetching looking for options:', error);
+      // Fallback to static data if backend fails
+      return [
+        { value: 'serious', label: 'Relation sérieuse' },
+        { value: 'casual', label: 'Relation décontractée' },
+        { value: 'friends', label: 'Amitié' },
+        { value: 'unsure', label: 'Je ne sais pas encore' }
+      ];
+    }
+  },
 };
 
 // Interactions API functions

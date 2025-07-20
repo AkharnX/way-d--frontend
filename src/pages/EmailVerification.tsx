@@ -88,106 +88,113 @@ const EmailVerification: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-100 to-purple-100">
+    <div className="min-h-screen gradient-bg">
       <PageHeader 
         title="Vérification Email"
         showBack={true}
         customBackAction={() => navigate('/login')}
       />
       
-      <div className="flex items-center justify-center p-4 pt-20">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Vérification Email</h1>
-            <p className="text-gray-600">
+      <div className="flex items-center justify-center p-6 pt-24">
+        <div className="max-w-lg w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-10">
+          <div className="text-center mb-10">
+            <div className="mb-6">
+              <img 
+                src="/logo-name-blue.png" 
+                alt="Way-d" 
+                className="h-16 w-auto mx-auto"
+              />
+            </div>
+            <h1 className="text-4xl font-bold way-d-primary mb-3">Vérification Email</h1>
+            <p className="text-gray-600 text-lg">
               Entrez le code de vérification envoyé à votre email
-          </p>
-        </div>
-
-        {message && (
-          <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-            {message}
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleVerify} className="space-y-6">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-              placeholder="votre@email.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-2">
-              Code de vérification
-            </label>
-            <input
-              type="text"
-              id="code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-center text-2xl font-mono"
-              placeholder="123456"
-              maxLength={6}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Vérification...' : 'Vérifier'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-gray-600 mb-4">
-            Vous n'avez pas reçu le code ?
-          </p>
-          <button
-            onClick={handleResend}
-            disabled={resendLoading}
-            className="text-pink-600 hover:text-pink-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {resendLoading ? 'Envoi...' : 'Renvoyer le code'}
-          </button>
-        </div>
-
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => navigate('/login')}
-            className="text-gray-600 hover:text-gray-700 font-medium"
-          >
-            ← Retour à la connexion
-          </button>
-        </div>
-
-        {/* Debug info en développement */}
-        {import.meta.env.DEV && (
-          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <h3 className="font-medium text-yellow-800 mb-2">Mode Développement</h3>
-            <p className="text-sm text-yellow-700">
-              Le code de vérification sera affiché dans la console du navigateur et dans les logs du serveur.
             </p>
           </div>
-        )}
+
+          {message && (
+            <div className="mb-8 p-5 bg-way-d-secondary/10 border border-way-d-secondary/30 way-d-secondary rounded-xl font-medium text-center">
+              {message}
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-8 p-5 bg-red-50 border border-red-200 text-red-700 rounded-xl font-medium text-center">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleVerify} className="space-y-8">
+            <div>
+              <label htmlFor="email" className="block font-semibold text-gray-700 mb-3 text-lg">
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-field"
+                placeholder="votre@email.com"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="code" className="block font-semibold text-gray-700 mb-3 text-lg">
+                Code de vérification
+              </label>
+              <input
+                type="text"
+                id="code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="input-field text-center text-3xl font-mono tracking-widest"
+                placeholder="123456"
+                maxLength={6}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary w-full text-xl"
+            >
+              {loading ? 'Vérification...' : 'Vérifier'}
+            </button>
+          </form>
+
+          <div className="mt-8 text-center">
+            <p className="text-gray-600 mb-6 text-lg">
+              Vous n'avez pas reçu le code ?
+            </p>
+            <button
+              onClick={handleResend}
+              disabled={resendLoading}
+              className="way-d-secondary hover:text-way-d-secondary/80 font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {resendLoading ? 'Envoi...' : 'Renvoyer le code'}
+            </button>
+          </div>
+
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => navigate('/login')}
+              className="text-gray-600 hover:text-gray-700 font-medium text-lg transition-colors"
+            >
+              ← Retour à la connexion
+            </button>
+          </div>
+
+          {/* Debug info en développement */}
+          {import.meta.env.DEV && (
+            <div className="mt-8 p-6 bg-way-d-primary/5 border border-way-d-primary/20 rounded-xl">
+              <h3 className="font-semibold way-d-primary mb-3 text-lg">Mode Développement</h3>
+              <p className="text-gray-700">
+                Le code de vérification sera affiché dans la console du navigateur et dans les logs du serveur.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { profileService } from '../services/api';
 import { User, Upload, MapPin, Calendar, Heart } from 'lucide-react';
@@ -18,9 +18,17 @@ interface ProfileForm {
   profession: string;
 }
 
+interface DynamicData {
+  interestSuggestions: string[];
+  professionOptions: string[];
+  educationLevels: string[];
+  lookingForOptions: Array<{ value: string; label: string }>;
+}
+
 function CreateProfile() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [dynamicDataLoading, setDynamicDataLoading] = useState(true);
   const [formData, setFormData] = useState<ProfileForm>({
     first_name: '',
     last_name: '',
@@ -35,13 +43,49 @@ function CreateProfile() {
     profession: ''
   });
 
+  const [dynamicData, setDynamicData] = useState<DynamicData>({
+    interestSuggestions: [],
+    professionOptions: [],
+    educationLevels: [],
+    lookingForOptions: [
+      { value: 'serious', label: 'Relation sérieuse' },
+      { value: 'casual', label: 'Relation décontractée' },
+      { value: 'friends', label: 'Amitié' },
+      { value: 'unsure', label: 'Je ne sais pas encore' }
+    ]
+  });
+
   const [newInterest, setNewInterest] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
 
-  const interestSuggestions = [
-    'Voyage', 'Sport', 'Cinéma', 'Musique', 'Lecture', 'Cuisine', 'Art',
-    'Technologie', 'Nature', 'Photographie', 'Danse', 'Fitness', 'Gaming'
-  ];
+  // Load dynamic data on component mount
+  useEffect(() => {
+    loadDynamicData();
+  }, []);
+
+  const loadDynamicData = async () => {
+    setDynamicDataLoading(true);
+    try {
+      const [interests, professions, education, lookingFor] = await Promise.all([
+        profileService.getInterestsSuggestions(),
+        profileService.getProfessionsSuggestions(),
+        profileService.getEducationLevels(),
+        profileService.getLookingForOptions()
+      ]);
+
+      setDynamicData({
+        interestSuggestions: interests,
+        professionOptions: professions,
+        educationLevels: education,
+        lookingForOptions: lookingFor
+      });
+    } catch (error) {
+      console.error('Error loading dynamic data:', error);
+      // Keep fallback data that's already set in state
+    } finally {
+      setDynamicDataLoading(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -101,52 +145,67 @@ function CreateProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white">
+    <div className="min-h-screen gradient-bg">
       <PageHeader 
         title="Créer votre profil"
         showBack={true}
         customBackAction={() => navigate('/app')}
       />
       
-      <div className="p-6">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-center mb-6">
-              <User className="w-8 h-8 text-cyan-400 mr-3" />
-              <h2 className="text-2xl font-bold">Informations personnelles</h2>
+      <div className="p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-10">
+            <div className="text-center mb-10">
+              <div className="mb-6">
+                <img 
+                  src="/logo-name-blue.png" 
+                  alt="Way-d" 
+                  className="h-16 w-auto mx-auto"
+                />
+              </div>
+              <h1 className="text-4xl font-bold way-d-primary mb-3">Créer votre profil</h1>
+              <p className="text-gray-600 text-lg">Montrez qui vous êtes vraiment</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-10">
+              {/* Informations personnelles */}
+              <div className="bg-way-d-primary/5 rounded-2xl p-8 border border-way-d-primary/10">
+                <div className="flex items-center mb-8">
+                  <div className="w-12 h-12 bg-way-d-primary rounded-full flex items-center justify-center mr-4">
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold way-d-primary">Informations personnelles</h2>
+                </div>
             {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Prénom</label>
+                <label className="block font-semibold text-gray-700 mb-3 text-lg">Prénom</label>
                 <input
                   type="text"
                   name="first_name"
                   value={formData.first_name}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
+                  className="input-field"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Nom</label>
+                <label className="block font-semibold text-gray-700 mb-3 text-lg">Nom</label>
                 <input
                   type="text"
                   name="last_name"
                   value={formData.last_name}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
+                  className="input-field"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  <Calendar className="w-4 h-4 inline mr-1" />
+                <label className="block font-semibold text-gray-700 mb-3 text-lg">
+                  <Calendar className="w-5 h-5 inline mr-2 way-d-secondary" />
                   Âge
                 </label>
                 <input
@@ -157,82 +216,120 @@ function CreateProfile() {
                   min="18"
                   max="100"
                   required
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
+                  className="input-field"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  <Heart className="w-4 h-4 inline mr-1" />
+                <label className="block font-semibold text-gray-700 mb-3 text-lg">
+                  <Heart className="w-5 h-5 inline mr-2 way-d-secondary" />
                   Recherche
                 </label>
                 <select
                   name="looking_for"
                   value={formData.looking_for}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
+                  className="input-field"
                 >
-                  <option value="serious">Relation sérieuse</option>
-                  <option value="casual">Relation décontractée</option>
-                  <option value="friendship">Amitié</option>
-                  <option value="open">Ouvert à tout</option>
+                  {dynamicData.lookingForOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                <MapPin className="w-4 h-4 inline mr-1" />
-                Localisation
-              </label>
-              <input
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
-                placeholder="Ville, Pays"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Taille (cm)</label>
-                <input
-                  type="number"
-                  name="height"
-                  value={formData.height}
-                  onChange={handleInputChange}
-                  min="140"
-                  max="220"
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
-                  placeholder="175"
-                />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Profession</label>
-                <input
-                  type="text"
-                  name="profession"
-                  value={formData.profession}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
-                />
-              </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Présentation</label>
-              <textarea
-                name="bio"
-                value={formData.bio}
-                onChange={handleInputChange}
-                required
-                rows={4}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
-                placeholder="Parlez-nous de vous..."
-              />
-            </div>
+              {/* Localisation et détails */}
+              <div className="bg-way-d-secondary/5 rounded-2xl p-8 border border-way-d-secondary/10">
+                <div className="flex items-center mb-8">
+                  <div className="w-12 h-12 bg-way-d-secondary rounded-full flex items-center justify-center mr-4">
+                    <MapPin className="w-6 h-6 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold way-d-primary">Localisation & Détails</h2>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-3 text-lg">
+                      <MapPin className="w-5 h-5 inline mr-2 way-d-secondary" />
+                      Localisation
+                    </label>
+                    <input
+                      type="text"
+                      name="location"
+                      value={formData.location}
+                      onChange={handleInputChange}
+                      required
+                      className="input-field"
+                      placeholder="Ville, Pays"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-3 text-lg">Taille (cm)</label>
+                      <input
+                        type="number"
+                        name="height"
+                        value={formData.height}
+                        onChange={handleInputChange}
+                        min="140"
+                        max="220"
+                        className="input-field"
+                        placeholder="175"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-3 text-lg">Profession</label>
+                      <select
+                        name="profession"
+                        value={formData.profession}
+                        onChange={handleInputChange}
+                        className="input-field"
+                        required
+                      >
+                        <option value="">Sélectionner une profession</option>
+                        {dynamicData.professionOptions.map((profession) => (
+                          <option key={profession} value={profession}>
+                            {profession}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-gray-700 mb-3 text-lg">Éducation</label>
+                      <select
+                        name="education"
+                        value={formData.education}
+                        onChange={handleInputChange}
+                        className="input-field"
+                        required
+                      >
+                        <option value="">Sélectionner un niveau</option>
+                        {dynamicData.educationLevels.map((level) => (
+                          <option key={level} value={level}>
+                            {level}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-3 text-lg">Présentation</label>
+                    <textarea
+                      name="bio"
+                      value={formData.bio}
+                      onChange={handleInputChange}
+                      required
+                      rows={4}
+                      className="input-field resize-none"
+                      placeholder="Parlez-nous de vous..."
+                    />
+                  </div>
+                </div>
+              </div>
 
             {/* Interests */}
             <div>
@@ -262,7 +359,7 @@ function CreateProfile() {
               </div>
 
               <div className="flex flex-wrap gap-2 mb-3">
-                {interestSuggestions.map((suggestion) => (
+                {dynamicData.interestSuggestions.map((suggestion: string) => (
                   <button
                     key={suggestion}
                     type="button"

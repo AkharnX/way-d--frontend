@@ -33,8 +33,8 @@ const Discovery: React.FC = () => {
       setError('');
       console.log('🔄 Loading filtered discovery profiles...');
       
-      // Use the new filtered discovery function
-      const data = await profileService.getFilteredDiscoverProfiles();
+      // Use the backend-optimized discover endpoint that excludes already interacted profiles
+      const data = await profileService.getDiscoverProfiles();
       console.log(`📊 Loaded ${data.length} filtered profiles for discovery`);
       
       if (data.length === 0) {
@@ -151,11 +151,11 @@ const Discovery: React.FC = () => {
 
   if (error) {
     return (
-      <div className="text-center py-8">
-        <div className="text-red-600 mb-4">{error}</div>
+      <div className="text-center py-12">
+        <div className="text-white/90 mb-6 text-lg">{error}</div>
         <button 
           onClick={loadProfiles} 
-          className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
+          className="btn-secondary text-lg"
           disabled={refreshing}
         >
           {refreshing ? 'Actualisation...' : 'Réessayer'}
@@ -166,16 +166,16 @@ const Discovery: React.FC = () => {
 
   if (!currentProfile) {
     return (
-      <div className="text-center py-8">
-        <div className="text-gray-600 mb-4">
+      <div className="text-center py-12">
+        <div className="text-white/90 mb-6 text-xl">
           🎉 Vous avez découvert tous les profils disponibles !
         </div>
-        <div className="text-sm text-gray-500 mb-4">
+        <div className="text-white/70 mb-6 text-lg">
           De nouveaux profils apparaîtront quand d'autres utilisateurs s'inscriront.
         </div>
         <button 
           onClick={refreshProfiles} 
-          className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
+          className="btn-secondary text-lg"
           disabled={refreshing}
         >
           {refreshing ? 'Actualisation...' : 'Actualiser'}
@@ -266,34 +266,35 @@ const Discovery: React.FC = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-center space-x-4">
+          <div className="flex justify-center space-x-8">
             <button
               onClick={handleDislike}
-              className="w-16 h-16 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+              className="w-20 h-20 bg-white/90 hover:bg-red-50 text-gray-600 hover:text-red-500 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-110 shadow-xl hover:shadow-2xl backdrop-blur-sm border-2 border-gray-200 hover:border-red-300"
               title="Passer"
             >
-              <X className="w-8 h-8" />
+              <X className="w-10 h-10" />
             </button>
+            
             <button
               onClick={handleLike}
-              className="w-16 h-16 bg-green-500 text-white rounded-full flex items-center justify-center hover:bg-green-600 transition-colors shadow-lg"
+              className="w-24 h-24 bg-way-d-secondary hover:bg-way-d-secondary/90 text-white rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-110 shadow-xl hover:shadow-2xl"
               title="J'aime"
             >
-              <Heart className="w-8 h-8" />
+              <Heart className="w-12 h-12 fill-current" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Progress indicator */}
-      <div className="mt-4 text-center">
-        <div className="text-sm text-gray-500 mb-2">
+      <div className="mt-6 text-center">
+        <div className="text-white/80 mb-3 font-medium">
           Profil {currentProfileIndex + 1} sur {profiles.length}
         </div>
         {profiles.length > 1 && (
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
             <div 
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+              className="bg-way-d-secondary h-3 rounded-full transition-all duration-500 shadow-sm" 
               style={{ width: `${((currentProfileIndex + 1) / profiles.length) * 100}%` }}
             ></div>
           </div>
@@ -302,26 +303,37 @@ const Discovery: React.FC = () => {
 
       {/* Last action info */}
       {lastAction && (
-        <div className="mt-4 p-4 bg-gray-100 rounded-lg shadow-inner">
+        <div className="mt-6 p-6 bg-white/10 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500">
+            <div className="text-white/90 font-medium">
               Dernière action: {lastAction.type === 'like' ? 'Aimé' : 'Passé'} {lastAction.profileName}
             </div>
             <button 
               onClick={toggleStats} 
-              className="text-blue-500 hover:underline"
+              className="way-d-secondary hover:text-way-d-secondary/80 font-medium underline transition-colors"
             >
               {showStats ? 'Cacher les stats' : 'Voir les stats'}
             </button>
           </div>
 
           {showStats && (
-            <div className="mt-2 text-sm text-gray-600">
-              <div>💚 Total Aimés: {stats.totalLikes}</div>
-              <div>❌ Total Passés: {stats.totalDislikes}</div>
-              <div>🎉 Total Matches: {stats.totalMatches}</div>
-              <div>👍 Aimés Reçus: {stats.likesReceived}</div>
-              <div>👀 Vues de Profil: {stats.profileViews}</div>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-white/80">
+              <div className="bg-white/10 p-3 rounded-xl">
+                <div className="text-2xl font-bold way-d-secondary">{stats.totalLikes}</div>
+                <div className="text-sm">J'aime donnés</div>
+              </div>
+              <div className="bg-white/10 p-3 rounded-xl">
+                <div className="text-2xl font-bold text-white">{stats.totalDislikes}</div>
+                <div className="text-sm">Profils passés</div>
+              </div>
+              <div className="bg-white/10 p-3 rounded-xl">
+                <div className="text-2xl font-bold way-d-secondary">{stats.totalMatches}</div>
+                <div className="text-sm">Matches</div>
+              </div>
+              <div className="bg-white/10 p-3 rounded-xl">
+                <div className="text-2xl font-bold text-white">{stats.likesReceived}</div>
+                <div className="text-sm">J'aime reçus</div>
+              </div>
             </div>
           )}
         </div>

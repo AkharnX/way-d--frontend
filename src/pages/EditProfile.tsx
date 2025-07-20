@@ -18,10 +18,18 @@ interface ProfileForm {
   profession: string;
 }
 
+interface DynamicData {
+  interestSuggestions: string[];
+  professionOptions: string[];
+  educationLevels: string[];
+  lookingForOptions: Array<{ value: string; label: string }>;
+}
+
 function EditProfile() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [dynamicDataLoading, setDynamicDataLoading] = useState(true);
   const [formData, setFormData] = useState<ProfileForm>({
     first_name: '',
     last_name: '',
@@ -36,17 +44,51 @@ function EditProfile() {
     profession: ''
   });
 
+  const [dynamicData, setDynamicData] = useState<DynamicData>({
+    interestSuggestions: [],
+    professionOptions: [],
+    educationLevels: [],
+    lookingForOptions: [
+      { value: 'serious', label: 'Relation sérieuse' },
+      { value: 'casual', label: 'Relation décontractée' },
+      { value: 'friends', label: 'Amitié' },
+      { value: 'unsure', label: 'Je ne sais pas encore' }
+    ]
+  });
+
   const [newInterest, setNewInterest] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
 
-  const interestSuggestions = [
-    'Voyage', 'Sport', 'Cinéma', 'Musique', 'Lecture', 'Cuisine', 'Art',
-    'Technologie', 'Nature', 'Photographie', 'Danse', 'Fitness', 'Gaming'
-  ];
+  const interestSuggestions = dynamicData.interestSuggestions;
 
   useEffect(() => {
     loadProfile();
+    loadDynamicData();
   }, []);
+
+  const loadDynamicData = async () => {
+    setDynamicDataLoading(true);
+    try {
+      const [interests, professions, education, lookingFor] = await Promise.all([
+        profileService.getInterestsSuggestions(),
+        profileService.getProfessionsSuggestions(),
+        profileService.getEducationLevels(),
+        profileService.getLookingForOptions()
+      ]);
+
+      setDynamicData({
+        interestSuggestions: interests,
+        professionOptions: professions,
+        educationLevels: education,
+        lookingForOptions: lookingFor
+      });
+    } catch (error) {
+      console.error('Error loading dynamic data:', error);
+      // Keep fallback data that's already set in state
+    } finally {
+      setDynamicDataLoading(false);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -216,10 +258,11 @@ function EditProfile() {
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
                 >
-                  <option value="serious">Relation sérieuse</option>
-                  <option value="casual">Relation décontractée</option>
-                  <option value="friends">Amitié</option>
-                  <option value="unsure">Je ne sais pas encore</option>
+                  {dynamicData.lookingForOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -256,23 +299,35 @@ function EditProfile() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Profession</label>
-                <input
-                  type="text"
+                <select
                   name="profession"
                   value={formData.profession}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
-                />
+                >
+                  <option value="">Sélectionner une profession</option>
+                  {dynamicData.professionOptions.map((profession) => (
+                    <option key={profession} value={profession}>
+                      {profession}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Éducation</label>
-                <input
-                  type="text"
+                <select
                   name="education"
                   value={formData.education}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
-                />
+                >
+                  <option value="">Sélectionner un niveau</option>
+                  {dynamicData.educationLevels.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
