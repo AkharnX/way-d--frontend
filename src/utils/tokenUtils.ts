@@ -2,6 +2,31 @@
 import { logError } from './errorUtils';
 
 /**
+ * Store tokens in localStorage
+ */
+export function setTokens(accessToken: string, refreshToken: string): void {
+  try {
+    localStorage.setItem('access_token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
+  } catch (error) {
+    logError('Error storing tokens:', error);
+    throw error;
+  }
+}
+
+/**
+ * Clear all tokens from localStorage
+ */
+export function clearTokens(): void {
+  try {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  } catch (error) {
+    logError('Error clearing tokens:', error);
+  }
+}
+
+/**
  * Validates if a token is properly formatted and not expired
  */
 export function ensureValidToken(token: string | null): boolean {

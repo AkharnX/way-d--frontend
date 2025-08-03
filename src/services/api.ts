@@ -2,6 +2,7 @@ import axios from 'axios';
 import type { AxiosResponse } from 'axios';
 import type { AuthResponse, LoginData, RegisterData, User, Profile, Match, Message } from '../types';
 import { getErrorMessage, logError } from '../utils/errorUtils';
+import { createRequestLoggerInterceptor } from '../utils/requestLogger';
 
 // Configuration des URLs - utilise les proxies Vite pour éviter les problèmes CORS
 const API_BASE_URL = '/api/auth'; // Auth service via proxy
@@ -89,8 +90,14 @@ export const clearTokens = () => {
   localStorage.removeItem('refresh_token');
 };
 
-// Request interceptors to add auth token
+// Request interceptors to add auth token and logging
+const requestLoggerInterceptor = createRequestLoggerInterceptor();
+
 [authApi, profileApi, interactionsApi, eventsApi, paymentsApi, notificationsApi, analyticsApi, adminApi].forEach(api => {
+  // Add request logging
+  api.interceptors.request.use(requestLoggerInterceptor.request, requestLoggerInterceptor.error);
+  
+  // Add auth token
   api.interceptors.request.use(
     (config) => {
       // Always get the latest token from localStorage
@@ -104,8 +111,12 @@ export const clearTokens = () => {
   );
 });
 
-// Response interceptors to handle token refresh
+// Response interceptors to handle token refresh and logging
 [authApi, profileApi, interactionsApi, eventsApi, paymentsApi, notificationsApi, analyticsApi, adminApi].forEach(api => {
+  // Add response logging
+  api.interceptors.response.use(requestLoggerInterceptor.response, requestLoggerInterceptor.error);
+  
+  // Add token refresh logic
   api.interceptors.response.use(
     (response) => response,
     async (error) => {

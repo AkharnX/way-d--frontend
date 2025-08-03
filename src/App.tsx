@@ -27,6 +27,8 @@ import Events from './pages/Events';
 import AdminDashboard from './pages/AdminDashboard';
 import PostLoginRedirect from './components/PostLoginRedirect';
 import Settings from './pages/Settings';
+import TokenDiagnostic from './components/TokenDiagnostic';
+import RequestLogsViewer from './components/RequestLogsViewer';
 
 function App() {
   return (
@@ -126,6 +128,10 @@ function App() {
                   
                   {/* Admin routes */}
                   <Route path="/admin" element={<AdminDashboard />} />
+                  
+                  {/* Debug routes */}
+                  <Route path="/token-diagnostic" element={<TokenDiagnostic />} />
+                  <Route path="/request-logs" element={<RequestLogsViewer />} />
                   
                   {/* Catch all - redirect to home */}
                   <Route path="*" element={<Navigate to="/" replace />} />
