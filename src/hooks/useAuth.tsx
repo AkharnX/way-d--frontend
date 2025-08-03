@@ -4,6 +4,7 @@ import type { User, LoginData, RegisterData } from '../types';
 import { authService, setTokens, clearTokens, profileService } from '../services/api';
 import { logError } from '../utils/errorUtils';
 import { validateAndCleanupTokens } from '../utils/tokenUtils';
+import { handleApiError } from '../utils/apiErrorUtils';
 
 interface AuthContextType {
   user: User | null;
@@ -125,7 +126,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
     } catch (error) {
       logError('Login failed:', error);
-      throw error;
+      throw handleApiError(error);
     }
   };
 

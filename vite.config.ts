@@ -11,17 +11,38 @@ export default defineConfig({
       '/api/auth': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/auth/, '')
+        rewrite: (path) => {
+          // Special handling for health endpoint
+          if (path === '/api/auth/health') {
+            return '/health';
+          }
+          // Default rewrite for other auth endpoints
+          return path.replace(/^\/api\/auth/, '');
+        }
       },
       '/api/profile': {
         target: 'http://localhost:8081',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/profile/, '/profile')
+        rewrite: (path) => {
+          // Special handling for health endpoint
+          if (path === '/api/profile/health') {
+            return '/health';
+          }
+          // Default rewrite for other profile endpoints
+          return path.replace(/^\/api\/profile/, '/profile');
+        }
       },
       '/api/interactions': {
         target: 'http://localhost:8082',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/interactions/, '/api')
+        rewrite: (path) => {
+          // Special handling for health endpoint
+          if (path === '/api/interactions/health') {
+            return '/health';
+          }
+          // Default rewrite for other interactions endpoints
+          return path.replace(/^\/api\/interactions/, '/api');
+        }
       },
       '/api/events': {
         target: 'http://localhost:8083',

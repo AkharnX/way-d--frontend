@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react';
+import { formatErrorForUser } from '../utils/apiErrorUtils';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -43,11 +44,9 @@ const Login: React.FC = () => {
       await login(formData);
       navigate('/post-login-redirect', { replace: true });
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || 
-        err.response?.data?.error || 
-        'Erreur de connexion. Vérifiez vos identifiants.'
-      );
+      // Use the new error formatting utility
+      const userFriendlyError = formatErrorForUser(err);
+      setError(userFriendlyError);
     } finally {
       setLoading(false);
     }
@@ -89,7 +88,31 @@ const Login: React.FC = () => {
           {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-red-600 text-sm text-center">{error}</p>
+              <div className="flex items-start">
+                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 mr-3 flex-shrink-0" />
+                <div className="text-sm text-red-700">
+                  {error.includes('se connecter au serveur') ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center">
+                        <WifiOff className="w-4 h-4 mr-2" />
+                        <span className="font-medium">Services backend non disponibles</span>
+                      </div>
+                      <div className="text-xs bg-red-100 p-3 rounded font-mono whitespace-pre-line">
+                        {error}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="text-red-600 hover:text-red-800 font-medium text-sm underline"
+                      >
+                        🔄 Réessayer après avoir démarré les services
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-line">{error}</div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ProfileRequiredRoute from './components/ProfileRequiredRoute';
 import AppLayout from './components/AppLayout';
 import ErrorBoundary from './components/ErrorBoundary';
+import ServiceStatus from './components/ServiceStatus';
 
 // Analytics wrapper component
 import AnalyticsWrapper from './components/AnalyticsWrapper';
@@ -129,6 +130,9 @@ function App() {
                   {/* Catch all - redirect to home */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+                
+                {/* Service Status Indicator */}
+                <ServiceStatus />
               </div>
             </AnalyticsWrapper>
           </Router>

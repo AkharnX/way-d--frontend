@@ -4,6 +4,7 @@ import {
   getSystemConfig, 
   getAdminUsers, 
   getAuditLogs,
+  healthService,
   DashboardStats,
   SystemConfiguration
 } from '../services/api';
@@ -13,6 +14,7 @@ const AdminDashboard: React.FC = () => {
   const [configs, setConfigs] = useState<SystemConfiguration[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [servicesHealth, setServicesHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,15 @@ const AdminDashboard: React.FC = () => {
       const logsResult = await getAuditLogs({ limit: 10 });
       if (logsResult.success && logsResult.data) {
         setAuditLogs(logsResult.data.logs || []);
+      }
+
+      // Load services health status
+      try {
+        const healthResult = await healthService.checkAll();
+        setServicesHealth(healthResult);
+      } catch (healthError) {
+        console.warn('Failed to load services health:', healthError);
+        setServicesHealth(null);
       }
     } catch (err) {
       setError('Failed to load dashboard data');
@@ -205,6 +216,90 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Services Health Status */}
+            {servicesHealth && (
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Microservices Status</h3>
+                  <button
+                    onClick={loadDashboardData}
+                    className="text-blue-500 hover:text-blue-700 text-sm font-medium"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { key: 'auth', name: 'Auth Service', port: 8080 },
+                    { key: 'profile', name: 'Profile Service', port: 8081 },
+                    { key: 'interactions', name: 'Interactions Service', port: 8082 }
+                  ].map((service) => {
+                    const serviceData = servicesHealth[service.key];
+                    const isHealthy = serviceData?.status === 'healthy';
+                    
+                    return (
+                      <div
+                        key={service.key}
+                        className={`p-4 rounded-lg border-2 ${
+                          isHealthy 
+                            ? 'border-green-200 bg-green-50' 
+                            : 'border-red-200 bg-red-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-gray-900">{service.name}</h4>
+                          <div className={`w-3 h-3 rounded-full ${
+                            isHealthy ? 'bg-green-500' : 'bg-red-500'
+                          }`} />
+                        </div>
+                        
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Status:</span>
+                            <span className={`font-medium ${
+                              isHealthy ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {isHealthy ? 'Healthy' : 'Unhealthy'}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Port:</span>
+                            <span className="text-gray-900">{service.port}</span>
+                          </div>
+                          
+                          {serviceData?.database && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Database:</span>
+                              <span className={`font-medium ${
+                                serviceData.database === 'ok' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {serviceData.database}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {serviceData?.version && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Version:</span>
+                              <span className="text-gray-900">{serviceData.version}</span>
+                            </div>
+                          )}
+                          
+                          {serviceData?.timestamp && (
+                            <div className="text-xs text-gray-500 mt-2">
+                              Last check: {new Date(serviceData.timestamp).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

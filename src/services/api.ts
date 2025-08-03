@@ -170,16 +170,18 @@ export const clearTokens = () => {
   );
 });
 
-// Health check services - Testing connectivity
+// Health check services - Using dedicated health endpoints
 export const healthService = {
-  checkAuth: async (): Promise<{ status: string; service: string; timestamp: string }> => {
+  checkAuth: async (): Promise<{ status: string; service: string; timestamp: string; database?: string; version?: string }> => {
     try {
-      // Test avec un endpoint valide
-      await authApi.get('/me');
+      // Use dedicated health endpoint
+      const response = await authApi.get('/health');
       return {
-        status: 'healthy',
-        service: 'auth',
-        timestamp: new Date().toISOString()
+        status: response.data.status === 'ok' ? 'healthy' : 'unhealthy',
+        service: response.data.service || 'auth',
+        timestamp: response.data.timestamp || new Date().toISOString(),
+        database: response.data.database,
+        version: response.data.version
       };
     } catch (error) {
       throw {
@@ -191,14 +193,16 @@ export const healthService = {
     }
   },
   
-  checkProfile: async (): Promise<{ status: string; service: string; timestamp: string }> => {
+  checkProfile: async (): Promise<{ status: string; service: string; timestamp: string; database?: string; version?: string }> => {
     try {
-      // Test avec un endpoint valide
-      await profileApi.get('/me');
+      // Use dedicated health endpoint
+      const response = await profileApi.get('/health');
       return {
-        status: 'healthy',
-        service: 'profile',
-        timestamp: new Date().toISOString()
+        status: response.data.status === 'ok' ? 'healthy' : 'unhealthy',
+        service: response.data.service || 'profile',  
+        timestamp: response.data.timestamp || new Date().toISOString(),
+        database: response.data.database,
+        version: response.data.version
       };
     } catch (error) {
       throw {
@@ -210,14 +214,16 @@ export const healthService = {
     }
   },
   
-  checkInteractions: async (): Promise<{ status: string; service: string; timestamp: string }> => {
+  checkInteractions: async (): Promise<{ status: string; service: string; timestamp: string; database?: string; version?: string }> => {
     try {
-      // Test avec un endpoint valide
-      await interactionsApi.get('/matches');
+      // Use dedicated health endpoint
+      const response = await interactionsApi.get('/health');
       return {
-        status: 'healthy',
-        service: 'interactions',
-        timestamp: new Date().toISOString()
+        status: response.data.status === 'ok' ? 'healthy' : 'unhealthy',
+        service: response.data.service || 'interactions',
+        timestamp: response.data.timestamp || new Date().toISOString(),
+        database: response.data.database,
+        version: response.data.version
       };
     } catch (error) {
       throw {
@@ -230,9 +236,9 @@ export const healthService = {
   },
   
   checkAll: async (): Promise<{ 
-    auth: { status: string; service: string; timestamp: string }; 
-    profile: { status: string; service: string; timestamp: string }; 
-    interactions: { status: string; service: string; timestamp: string }; 
+    auth: { status: string; service: string; timestamp: string; database?: string; version?: string }; 
+    profile: { status: string; service: string; timestamp: string; database?: string; version?: string }; 
+    interactions: { status: string; service: string; timestamp: string; database?: string; version?: string }; 
   }> => {
     try {
       const [auth, profile, interactions] = await Promise.allSettled([
