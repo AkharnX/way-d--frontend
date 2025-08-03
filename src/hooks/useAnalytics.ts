@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { autoLogActivity, initializeAnalytics, cleanupAnalytics } from '../services/api';
-import { logError } from '../utils/errorUtils';
 
 // Hook to automatically track page views
 export const usePageTracking = () => {

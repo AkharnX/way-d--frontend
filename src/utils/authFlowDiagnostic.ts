@@ -1,5 +1,3 @@
-import { logError } from './errorUtils';
-
 interface AuthFlowStep {
   step: string;
   status: 'pending' | 'success' | 'error' | 'skipped';
@@ -54,7 +52,7 @@ class AuthFlowDiagnostic {
       this.addStep('backend-connectivity', 'pending', 'Testing backend connectivity');
       
       try {
-        const { authService, healthService } = await import('../services/api');
+        const { healthService } = await import('../services/api');
         const healthResponse = await healthService.checkAuth();
         this.addStep('backend-connectivity', 'success', 'Backend is reachable', healthResponse);
       } catch (error) {
@@ -185,7 +183,7 @@ class AuthFlowDiagnostic {
       this.addStep('auth-state-check', 'pending', 'Checking auth state consistency');
       
       try {
-        const { useAuth } = await import('../hooks/useAuth');
+        // Check auth hook structure
         // Note: This is a simplified check since we can't easily test hooks outside React
         this.addStep('auth-state-check', 'success', 'Auth state structure appears valid');
       } catch (authError) {

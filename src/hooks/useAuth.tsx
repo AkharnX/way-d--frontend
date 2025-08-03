@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import type { User, LoginData, RegisterData } from '../types';
 import { authService, setTokens, clearTokens, profileService } from '../services/api';
 import { logError } from '../utils/errorUtils';
-import { validateAndCleanupTokens } from '../utils/tokenUtils';
 import { handleApiError } from '../utils/apiErrorUtils';
 
 interface AuthContextType {
@@ -185,10 +184,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // Try to create basic profile automatically
             await profileService.createBasicProfile(data);
             
+            console.log('✅ Basic profile created successfully!');
+            
+            // Try to upload photos if they exist
+            if (data.photos && data.photos.length > 0) {
+              console.log('📸 Uploading photos...');
+              for (const photoFile of data.photos) {
+                try {
+                  // Note: This assumes photos are stored as File objects
+                  if (photoFile instanceof File) {
+                    await profileService.uploadPhoto(photoFile);
+                  }
+                } catch (photoError) {
+                  console.warn('Photo upload failed:', photoError);
+                }
+              }
+            }
+            
             // Clear the stored data after successful creation
             localStorage.removeItem('pending_profile_data');
             
-            console.log('✅ Automatic profile creation successful!');
+            console.log('✅ Automatic profile creation complete!');
             
             // Check if profile was created successfully
             try {

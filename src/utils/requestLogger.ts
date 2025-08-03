@@ -1,5 +1,3 @@
-import { logError } from './errorUtils';
-
 interface RequestLog {
   timestamp: string;
   method: string;

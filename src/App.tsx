@@ -14,7 +14,6 @@ import AnalyticsWrapper from './components/AnalyticsWrapper';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import RegisterNew from './pages/Register_new';
 import EmailVerification from './pages/EmailVerification';
 import Dashboard from './pages/Dashboard';
 import Discovery from './pages/Discovery';
@@ -42,8 +41,7 @@ function App() {
                   {/* Public routes */}
                   <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<RegisterNew />} />
-                  <Route path="/register-old" element={<Register />} />
+                  <Route path="/register" element={<Register />} />
                   <Route path="/verify-email" element={<EmailVerification />} />
                   <Route path="/post-login-redirect" element={
                     <ProtectedRoute>

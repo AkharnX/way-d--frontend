@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { formatErrorForUser } from '../utils/apiErrorUtils';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, WifiOff } from 'lucide-react';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();

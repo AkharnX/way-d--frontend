@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authService } from '../services/api';
 import { User } from '../types';
 import { logError } from '../utils/errorUtils';
-import { ensureValidToken, validateAndCleanupTokens, cleanupTokens } from '../utils/tokenUtils';
 
 interface SecurityContextType {
   user: User | null;
