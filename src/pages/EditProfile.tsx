@@ -29,7 +29,6 @@ function EditProfile() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [dynamicDataLoading, setDynamicDataLoading] = useState(true);
   const [formData, setFormData] = useState<ProfileForm>({
     first_name: '',
     last_name: '',
@@ -67,7 +66,6 @@ function EditProfile() {
   }, []);
 
   const loadDynamicData = async () => {
-    setDynamicDataLoading(true);
     try {
       const [interests, professions, education, lookingFor] = await Promise.all([
         profileService.getInterestsSuggestions(),
@@ -85,8 +83,6 @@ function EditProfile() {
     } catch (error) {
       console.error('Error loading dynamic data:', error);
       // Keep fallback data that's already set in state
-    } finally {
-      setDynamicDataLoading(false);
     }
   };
 
@@ -199,8 +195,8 @@ function EditProfile() {
         <div className="max-w-2xl mx-auto">
           <div className="bg-gray-800 rounded-lg p-6">
             <div className="flex items-center mb-6">
-              <Edit className="w-8 h-8 text-cyan-400 mr-3" />
-              <h2 className="text-2xl font-bold">Modifier vos informations</h2>
+              <Edit className="w-8 h-8 text-way-d-secondary mr-3" />
+              <h2 className="text-2xl font-bold text-white">Modifier vos informations</h2>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -352,7 +348,7 @@ function EditProfile() {
                 <button
                   type="button"
                   onClick={() => addInterest(newInterest)}
-                  className="px-4 py-2 bg-cyan-400 text-slate-900 rounded-md hover:bg-opacity-80"
+                  className="px-4 py-2 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90"
                 >
                   Ajouter
                 </button>
@@ -376,13 +372,13 @@ function EditProfile() {
                 {formData.interests.map((interest) => (
                   <span
                     key={interest}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-cyan-400 text-slate-900"
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-way-d-secondary text-white"
                   >
                     {interest}
                     <button
                       type="button"
                       onClick={() => removeInterest(interest)}
-                      className="ml-2 text-slate-900 hover:text-gray-600"
+                      className="ml-2 text-white hover:text-gray-200"
                     >
                       ×
                     </button>
@@ -407,12 +403,11 @@ function EditProfile() {
                   className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
                 />
                 <button
-                  type="button"
-                  onClick={addPhoto}
-                  className="px-4 py-2 bg-cyan-400 text-slate-900 rounded-md hover:bg-opacity-80"
-                >
-                  Ajouter Photo
-                </button>
+                  type="button"                onClick={addPhoto}
+                className="px-4 py-2 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90"
+              >
+                Ajouter Photo
+              </button>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -446,7 +441,7 @@ function EditProfile() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-3 bg-cyan-400 text-slate-900 rounded-md font-medium hover:bg-opacity-80 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-way-d-secondary text-white rounded-md font-medium hover:bg-way-d-secondary/90 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>

@@ -7,6 +7,11 @@ import { getErrorMessage, logError } from '../utils/errorUtils';
 const API_BASE_URL = '/api/auth'; // Auth service via proxy
 const PROFILE_API_URL = '/api/profile'; // Profile service via proxy  
 const INTERACTIONS_API_URL = '/api/interactions'; // Interactions service via proxy
+const EVENTS_API_URL = '/api/events'; // Events service via proxy
+const PAYMENTS_API_URL = '/api/payments'; // Payments service via proxy
+const NOTIFICATIONS_API_URL = '/api/notifications'; // Notifications service via proxy
+const ANALYTICS_API_URL = '/api/analytics'; // Analytics service via proxy
+const ADMIN_API_URL = '/api/admin'; // Administration service via proxy
 
 // Create axios instances for different services
 const authApi = axios.create({
@@ -25,6 +30,41 @@ const profileApi = axios.create({
 
 const interactionsApi = axios.create({
   baseURL: INTERACTIONS_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+const eventsApi = axios.create({
+  baseURL: EVENTS_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+const paymentsApi = axios.create({
+  baseURL: PAYMENTS_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+const notificationsApi = axios.create({
+  baseURL: NOTIFICATIONS_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+const analyticsApi = axios.create({
+  baseURL: ANALYTICS_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+const adminApi = axios.create({
+  baseURL: ADMIN_API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -50,7 +90,7 @@ export const clearTokens = () => {
 };
 
 // Request interceptors to add auth token
-[authApi, profileApi, interactionsApi].forEach(api => {
+[authApi, profileApi, interactionsApi, eventsApi, paymentsApi, notificationsApi, analyticsApi, adminApi].forEach(api => {
   api.interceptors.request.use(
     (config) => {
       // Always get the latest token from localStorage
@@ -65,7 +105,7 @@ export const clearTokens = () => {
 });
 
 // Response interceptors to handle token refresh
-[authApi, profileApi, interactionsApi].forEach(api => {
+[authApi, profileApi, interactionsApi, eventsApi, paymentsApi, notificationsApi, analyticsApi, adminApi].forEach(api => {
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
@@ -219,7 +259,7 @@ export const authService = {
     return response.data;
   },
 
-  register: async (data: RegisterData): Promise<{ message: string }> => {
+  register: async (data: RegisterData): Promise<{ message: string; verification_code?: string; instructions?: string }> => {
     const response = await authApi.post('/register', data);
     return response.data;
   },
@@ -229,7 +269,7 @@ export const authService = {
     return response.data;
   },
 
-  resendVerificationCode: async (data: { email: string }): Promise<{ message: string; code?: string }> => {
+  resendVerificationCode: async (data: { email: string }): Promise<{ message: string; verification_code?: string; instructions?: string }> => {
     const response = await authApi.post('/resend-verification', data);
     return response.data;
   },
@@ -262,6 +302,19 @@ export const authService = {
     setTokens(response.data.access_token, response.data.refresh_token || currentRefreshToken);
     
     return response.data;
+  },
+
+  // Check if user has a profile (for post-login redirection)
+  hasProfile: async (): Promise<boolean> => {
+    try {
+      const response = await profileApi.get('/me');
+      return !!response.data; // Returns true if profile exists
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return false; // Profile doesn't exist
+      }
+      throw error; // Other errors
+    }
   },
 };
 
@@ -580,10 +633,17 @@ export const profileService = {
     await profileApi.post('/activity');
   },
 
-  // Discovery profiles
+  // Discovery profiles - optimized to exclude already interacted profiles
   getDiscoverProfiles: async (offset: number = 0): Promise<Profile[]> => {
-    const response: AxiosResponse<Profile[]> = await profileApi.get(`/discover?offset=${offset}`);
-    return response.data;
+    try {
+      // Use the optimized filtered discovery method
+      return await profileService.getFilteredDiscoverProfiles();
+    } catch (error) {
+      // Fallback to original method if filtered discovery fails
+      console.warn('Filtered discovery failed, using original method:', error);
+      const response: AxiosResponse<Profile[]> = await profileApi.get(`/discover?offset=${offset}`);
+      return response.data;
+    }
   },
 
   // Get all available profiles for discovery (excluding already interacted ones)
@@ -742,6 +802,35 @@ export const profileService = {
       ];
     }
   },
+
+  getGenderOptions: async (): Promise<Array<{ value: string; label: string }>> => {
+    try {
+      const response = await profileApi.get('/gender/options');
+      return response.data.options || [];
+    } catch (error) {
+      console.error('Error fetching gender options:', error);
+      // Fallback to static data if backend fails
+      return [
+        { value: 'male', label: 'Homme' },
+        { value: 'female', label: 'Femme' },
+        { value: 'other', label: 'Autre / Ne se prononce pas' }
+      ];
+    }
+  },
+
+  // Automatic profile creation
+  createBasicProfile: async (data: any): Promise<Profile> => {
+    console.log("🤖 Creating basic profile automatically:", data);
+    const response: AxiosResponse<any> = await profileApi.post('/auto-create', {
+      height: data.height || 175,
+      bio: data.bio || '',
+      location: data.location ? await getLocationCoordinates(data.location) : null,
+      location_string: data.location || '',
+      looking_for: data.looking_for || 'serious'
+    });
+    console.log("✅ Basic profile created:", response.data);
+    return response.data.profile;
+  },
 };
 
 // Interactions API functions
@@ -844,6 +933,29 @@ export const interactionsService = {
   },
 
   // New: Get interaction statistics
+  getUserStats: async (): Promise<{
+    totalLikes: number;
+    totalDislikes: number;
+    totalMatches: number;
+    likesReceived: number;
+    profileViews: number;
+  }> => {
+    try {
+      const response = await interactionsApi.get('/stats');
+      return response.data;
+    } catch (error) {
+      // Return default stats if endpoint is not available
+      return {
+        totalLikes: 0,
+        totalDislikes: 0,
+        totalMatches: 0,
+        likesReceived: 0,
+        profileViews: 0
+      };
+    }
+  },
+
+  // Get interaction statistics (alias for getUserStats)
   getInteractionStats: async (): Promise<{
     totalLikes: number;
     totalDislikes: number;
@@ -866,176 +978,549 @@ export const interactionsService = {
   },
 };
 
-export const isAuthenticated = () => {
-  return !!localStorage.getItem('access_token');
+// Events API functions
+export const eventsService = {
+  // Get all events with pagination and filters
+  getEvents: async (params?: {
+    page?: number;
+    limit?: number;
+    type?: string;
+    location?: string;
+  }): Promise<{ events: any[]; page: number; limit: number }> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.type) queryParams.append('type', params.type);
+    if (params?.location) queryParams.append('location', params.location);
+    
+    const response = await eventsApi.get(`?${queryParams.toString()}`);
+    return response.data;
+  },
+
+  // Get a specific event by ID
+  getEvent: async (eventId: string): Promise<any> => {
+    const response = await eventsApi.get(`/${eventId}`);
+    return response.data;
+  },
+
+  // Create a new event
+  createEvent: async (eventData: {
+    name: string;
+    description: string;
+    location: string;
+    start_date: string;
+    end_date: string;
+    type: 'Public' | 'Private';
+    max_capacity?: number;
+  }): Promise<any> => {
+    const response = await eventsApi.post('', eventData);
+    return response.data;
+  },
+
+  // Update an existing event
+  updateEvent: async (eventId: string, eventData: any): Promise<any> => {
+    const response = await eventsApi.put(`/${eventId}`, eventData);
+    return response.data;
+  },
+
+  // Delete an event
+  deleteEvent: async (eventId: string): Promise<void> => {
+    await eventsApi.delete(`/${eventId}`);
+  },
+
+  // Participate in an event
+  participateInEvent: async (eventId: string): Promise<any> => {
+    const response = await eventsApi.post(`/${eventId}/participate`);
+    return response.data;
+  },
+
+  // Cancel participation in an event
+  cancelParticipation: async (eventId: string): Promise<void> => {
+    await eventsApi.delete(`/${eventId}/participate`);
+  },
+
+  // Get event participants
+  getEventParticipants: async (eventId: string): Promise<any[]> => {
+    const response = await eventsApi.get(`/${eventId}/participants`);
+    return response.data.participants;
+  },
+
+  // Get user's created events
+  getMyEvents: async (): Promise<any[]> => {
+    const response = await eventsApi.get('/my-events');
+    return response.data.events;
+  },
+
+  // Get user's event participations
+  getMyParticipations: async (): Promise<any[]> => {
+    const response = await eventsApi.get('/my-participations');
+    return response.data.participations;
+  },
 };
 
-// Token validation helper
-export const isTokenValid = (token: string): boolean => {
-  if (!token) return false;
-  
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const now = Math.floor(Date.now() / 1000);
-    return payload.exp > now;
-  } catch (error) {
-    return false;
-  }
+// Payments & Subscriptions API functions
+export const paymentsService = {
+  // Get subscription plans
+  getSubscriptionPlans: async (): Promise<any[]> => {
+    const response = await paymentsApi.get('/plans');
+    return response.data.plans;
+  },
+
+  // Get user's subscription status
+  getUserSubscription: async (): Promise<any> => {
+    const response = await paymentsApi.get('/subscription');
+    return response.data;
+  },
+
+  // Create payment intent
+  createPaymentIntent: async (paymentData: {
+    amount: number;
+    currency: string;
+    plan_type: string;
+  }): Promise<{ client_secret: string; payment_id: string }> => {
+    const response = await paymentsApi.post('/payment-intent', paymentData);
+    return response.data;
+  },
+
+  // Create subscription
+  createSubscription: async (subscriptionData: {
+    plan_type: string;
+    payment_method: string;
+  }): Promise<any> => {
+    const response = await paymentsApi.post('/subscription', subscriptionData);
+    return response.data;
+  },
+
+  // Cancel subscription
+  cancelSubscription: async (): Promise<void> => {
+    await paymentsApi.delete('/subscription');
+  },
+
+  // Get payment history
+  getPaymentHistory: async (params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{ payments: any[]; page: number; limit: number }> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    const response = await paymentsApi.get(`/history?${queryParams.toString()}`);
+    return response.data;
+  },
 };
 
-// Helper to ensure we have a valid token
-export const ensureValidToken = async (): Promise<string | null> => {
-  const currentToken = localStorage.getItem('access_token');
-  
-  if (currentToken && isTokenValid(currentToken)) {
-    return currentToken;
-  }
-  
-  // Try to refresh the token
-  try {
-    const response = await authService.refreshToken();
-    return response.access_token;
-  } catch (error) {
-    logError('Failed to refresh token:', error);
-    clearTokens();
-    return null;
-  }
+// Notifications API functions
+export const notificationsService = {
+  // Get user notifications
+  getNotifications: async (params?: {
+    page?: number;
+    limit?: number;
+    unread_only?: boolean;
+  }): Promise<{ notifications: any[]; page: number; limit: number }> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.unread_only) queryParams.append('unread_only', params.unread_only.toString());
+    
+    const response = await notificationsApi.get(`?${queryParams.toString()}`);
+    return response.data;
+  },
+
+  // Mark notification as read
+  markAsRead: async (notificationId: string): Promise<void> => {
+    await notificationsApi.patch(`/${notificationId}/read`);
+  },
+
+  // Mark all notifications as read
+  markAllAsRead: async (): Promise<void> => {
+    await notificationsApi.patch('/mark-all-read');
+  },
+
+  // Get notification settings
+  getSettings: async (): Promise<any> => {
+    const response = await notificationsApi.get('/settings');
+    return response.data;
+  },
+
+  // Update notification settings
+  updateSettings: async (settings: any): Promise<any> => {
+    const response = await notificationsApi.put('/settings', settings);
+    return response.data;
+  },
+
+  // Register push token
+  registerPushToken: async (tokenData: {
+    token: string;
+    platform: 'iOS' | 'Android' | 'Web';
+  }): Promise<void> => {
+    await notificationsApi.post('/push-token', tokenData);
+  },
+
+  // Get notification count
+  getNotificationCount: async (): Promise<{ unread: number; total: number }> => {
+    const response = await notificationsApi.get('/count');
+    return response.data;
+  },
 };
 
-// Enhanced cleanup function for token desynchronization
-export const cleanupTokens = async (): Promise<boolean> => {
-  try {
-    // Clear all tokens from localStorage
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_email');
-    
-    // Clear any cached user data
-    localStorage.removeItem('user_profile');
-    
-    // Log the cleanup
-    console.log('✅ All tokens cleared from localStorage');
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Error during token cleanup:', error);
-    return false;
-  }
-};
+// ========================
+// ANALYTICS API FUNCTIONS
+// ========================
 
-// Enhanced token validation with cleanup on invalid tokens
-export const validateAndCleanupTokens = async (): Promise<boolean> => {
-  const refreshToken = localStorage.getItem('refresh_token');
-  
-  if (!refreshToken) {
-    console.log('No refresh token found');
-    return false;
-  }
-  
-  try {
-    // Test the refresh token using authService
-    const response = await authService.refreshToken();
-    
-    if (response.access_token) {
-      console.log('✅ Tokens validated and refreshed successfully');
-      return true;
-    }
-    
-    return false;
-  } catch (error: any) {
-    console.warn('❌ Token validation failed, cleaning up:', error.response?.status);
-    
-    // If token is invalid (401), clean up and let user login again
-    if (error.response?.status === 401) {
-      await cleanupTokens();
-    }
-    
-    return false;
-  }
-};
+export interface ActivityLog {
+  id: number;
+  user_id: number;
+  action: string;
+  resource: string;
+  resource_id?: number;
+  ip_address: string;
+  user_agent: string;
+  metadata?: string;
+  created_at: string;
+}
 
-// Advanced token synchronization with backend validation
-export const syncTokensWithBackend = async (): Promise<{ success: boolean; message: string; newTokens?: { access_token: string; refresh_token: string } }> => {
-  const refreshToken = localStorage.getItem('refresh_token');
-  
-  if (!refreshToken) {
-    return { success: false, message: 'No refresh token found' };
-  }
-  
+export interface UserStatistics {
+  user_id: number;
+  profile_views: number;
+  profile_likes: number;
+  profile_dislikes: number;
+  matches_created: number;
+  messages_exchanged: number;
+  events_created: number;
+  events_participated: number;
+  total_session_time: number;
+  avg_session_duration: number;
+  last_active_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppStatistics {
+  id: number;
+  date: string;
+  total_users: number;
+  active_users: number;
+  new_registrations: number;
+  total_profiles: number;
+  total_matches: number;
+  total_events: number;
+  total_messages: number;
+  avg_session_duration: number;
+  premium_subscriptions: number;
+  created_at: string;
+}
+
+// Log user activity
+export const logActivity = async (action: string, resource: string, resourceId?: number, metadata?: any): Promise<{ success: boolean; message: string }> => {
   try {
-    console.log('🔄 Attempting to sync tokens with backend...');
-    
-    // Test the current refresh token using the separate token refresh API
-    const response = await tokenRefreshApi.post('/refresh-token', {
-      refresh_token: refreshToken
+    await analyticsApi.post('/activity', {
+      action,
+      resource,
+      resource_id: resourceId,
+      metadata: metadata ? JSON.stringify(metadata) : undefined
     });
-    
-    if (response.data.access_token) {
-      // Success - tokens are valid
-      setTokens(response.data.access_token, response.data.refresh_token || refreshToken);
-      console.log('✅ Tokens synchronized successfully');
-      return { 
-        success: true, 
-        message: 'Tokens synchronized successfully',
-        newTokens: {
-          access_token: response.data.access_token,
-          refresh_token: response.data.refresh_token || refreshToken
-        }
-      };
-    }
-    
-    return { success: false, message: 'Invalid response from server' };
-    
+
+    return { success: true, message: 'Activity logged successfully' };
   } catch (error: any) {
-    console.warn('❌ Token sync failed:', error.response?.status, error.response?.data?.error);
+    logError('Failed to log activity', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Start user session
+export const startAnalyticsSession = async (): Promise<{ success: boolean; session_id?: string; message: string }> => {
+  try {
+    const response = await analyticsApi.post('/sessions');
+    return { 
+      success: true, 
+      session_id: response.data.session_id,
+      message: 'Session started successfully' 
+    };
+  } catch (error: any) {
+    logError('Failed to start session', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// End user session
+export const endAnalyticsSession = async (sessionId?: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    const url = sessionId ? `/sessions/${sessionId}` : '/sessions';
+    await analyticsApi.delete(url);
+    return { success: true, message: 'Session ended successfully' };
+  } catch (error: any) {
+    logError('Failed to end session', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Get user statistics
+export const getUserAnalytics = async (userId: number): Promise<{ success: boolean; data?: UserStatistics; message: string }> => {
+  try {
+    const response = await analyticsApi.get(`/users/${userId}/statistics`);
+    return { success: true, data: response.data, message: 'Statistics retrieved successfully' };
+  } catch (error: any) {
+    logError('Failed to get user statistics', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Get activity logs
+export const getActivityLogs = async (params?: {
+  start_date?: string;
+  end_date?: string;
+  action?: string;
+  resource?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ success: boolean; data?: ActivityLog[]; message: string }> => {
+  try {
+    const response = await analyticsApi.get('/activity', { params });
+    return { success: true, data: response.data.logs, message: 'Activity logs retrieved successfully' };
+  } catch (error: any) {
+    logError('Failed to get activity logs', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// ===============================
+// ADMINISTRATION API FUNCTIONS
+// ===============================
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+  permissions: string[];
+  is_active: boolean;
+  last_login?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SystemConfiguration {
+  id: number;
+  key: string;
+  value: string;
+  type: string;
+  category: string;
+  description: string;
+  is_editable: boolean;
+  updated_by: number;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface DashboardStats {
+  total_users: number;
+  active_users: number;
+  new_users_24h: number;
+  total_profiles: number;
+  total_matches: number;
+  total_events: number;
+  total_reports: number;
+  pending_reports: number;
+  system_health: string;
+  active_sessions: number;
+  premium_subscriptions: number;
+  revenue_this_month: number;
+}
+
+export interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  type: string;
+  target_users: string;
+  is_active: boolean;
+  start_date: string;
+  end_date?: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Admin login
+export const adminLogin = async (username: string, password: string): Promise<{ success: boolean; token?: string; admin?: AdminUser; message: string }> => {
+  try {
+    const response = await adminApi.post('/auth/login', { username, password });
     
-    // If 401, the refresh token is invalid - need to clear and login again
-    if (error.response?.status === 401) {
-      await cleanupTokens();
-      return { 
-        success: false, 
-        message: 'Refresh token invalid - cleared tokens. Please login again.' 
-      };
-    }
+    // Store admin token separately from user token
+    localStorage.setItem('admin_token', response.data.token);
     
     return { 
-      success: false, 
-      message: `Token sync failed: ${error.response?.data?.error || error.message}` 
+      success: true, 
+      token: response.data.token,
+      admin: response.data.admin,
+      message: 'Admin login successful' 
     };
+  } catch (error: any) {
+    logError('Admin login failed', error);
+    return { success: false, message: getErrorMessage(error) };
   }
 };
 
-// Auto-recovery function for token issues
-export const autoRecoverTokens = async (): Promise<boolean> => {
+// Get admin dashboard stats
+export const getAdminDashboard = async (): Promise<{ success: boolean; data?: DashboardStats; message: string }> => {
   try {
-    console.log('🔧 Starting auto-recovery for token issues...');
-    
-    // Step 1: Try to sync with backend
-    const syncResult = await syncTokensWithBackend();
-    
-    if (syncResult.success) {
-      console.log('✅ Auto-recovery successful - tokens synchronized');
-      return true;
+    const response = await adminApi.get('/admin/dashboard');
+    return { success: true, data: response.data, message: 'Dashboard data retrieved successfully' };
+  } catch (error: any) {
+    logError('Failed to get dashboard stats', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Get system configuration
+export const getSystemConfig = async (category?: string): Promise<{ success: boolean; data?: SystemConfiguration[]; message: string }> => {
+  try {
+    const params = category ? { category } : undefined;
+    const response = await adminApi.get('/admin/config', { params });
+    return { success: true, data: response.data.configurations, message: 'Configuration retrieved successfully' };
+  } catch (error: any) {
+    logError('Failed to get system configuration', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Update system configuration
+export const updateSystemConfig = async (configId: number, value: string, notes?: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    await adminApi.put(`/admin/config/${configId}`, { value, notes });
+    return { success: true, message: 'Configuration updated successfully' };
+  } catch (error: any) {
+    logError('Failed to update configuration', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Get users (admin)
+export const getAdminUsers = async (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+}): Promise<{ success: boolean; data?: any; message: string }> => {
+  try {
+    const response = await adminApi.get('/admin/users', { params });
+    return { success: true, data: response.data, message: 'Users retrieved successfully' };
+  } catch (error: any) {
+    logError('Failed to get users', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Manage user (admin action)
+export const manageUser = async (userId: number, action: string, reason: string, duration?: number, notes?: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    await adminApi.put(`/admin/users/${userId}/action`, {
+      action,
+      reason,
+      duration,
+      notes
+    });
+    return { success: true, message: `User ${action} successful` };
+  } catch (error: any) {
+    logError('Failed to manage user', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Get announcements
+export const getAnnouncements = async (active?: boolean): Promise<{ success: boolean; data?: Announcement[]; message: string }> => {
+  try {
+    const params = active !== undefined ? { active: active.toString() } : undefined;
+    const response = await adminApi.get('/admin/announcements', { params });
+    return { success: true, data: response.data.announcements, message: 'Announcements retrieved successfully' };
+  } catch (error: any) {
+    logError('Failed to get announcements', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Create announcement
+export const createAnnouncement = async (announcement: {
+  title: string;
+  content: string;
+  type: string;
+  target_users: string;
+  start_date: string;
+  end_date?: string;
+}): Promise<{ success: boolean; id?: number; message: string }> => {
+  try {
+    const response = await adminApi.post('/admin/announcements', announcement);
+    return { 
+      success: true, 
+      id: response.data.id,
+      message: 'Announcement created successfully' 
+    };
+  } catch (error: any) {
+    logError('Failed to create announcement', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// Get audit logs
+export const getAuditLogs = async (params?: {
+  page?: number;
+  limit?: number;
+  admin_id?: string;
+  action?: string;
+  resource?: string;
+}): Promise<{ success: boolean; data?: any; message: string }> => {
+  try {
+    const response = await adminApi.get('/admin/audit-logs', { params });
+    return { success: true, data: response.data, message: 'Audit logs retrieved successfully' };
+  } catch (error: any) {
+    logError('Failed to get audit logs', error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+};
+
+// ============================
+// AUTO ANALYTICS INTEGRATION
+// ============================
+
+// Auto-log user actions (can be called from various parts of the app)
+export const autoLogActivity = async (action: string, resource: string, resourceId?: number) => {
+  try {
+    // Only log if user is authenticated
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      await logActivity(action, resource, resourceId);
     }
-    
-    // Step 2: If sync fails, clean up and prepare for fresh login
-    console.log('🧹 Sync failed, cleaning up tokens...');
-    await cleanupTokens();
-    
-    // Step 3: Check if we have user email for potential re-login
-    const userEmail = localStorage.getItem('user_email');
-    if (userEmail) {
-      console.log('📧 User email found, ready for re-authentication');
-      // Could potentially implement auto-login here if we had stored credentials
-      // For security, we won't store passwords, so manual re-login is required
-    }
-    
-    console.log('🔄 Auto-recovery completed - manual login required');
-    return false;
-    
   } catch (error) {
-    console.error('❌ Auto-recovery failed:', error);
-    await cleanupTokens();
-    return false;
+    // Silently fail for analytics to not disrupt user experience
+    console.debug('Analytics logging failed:', error);
+  }
+};
+
+// Auto-start session on app load
+export const initializeAnalytics = async () => {
+  try {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      const result = await startAnalyticsSession();
+      if (result.success && result.session_id) {
+        sessionStorage.setItem('analytics_session_id', result.session_id);
+      }
+    }
+  } catch (error) {
+    console.debug('Analytics initialization failed:', error);
+  }
+};
+
+// Auto-end session on app close
+export const cleanupAnalytics = async () => {
+  try {
+    const sessionId = sessionStorage.getItem('analytics_session_id');
+    if (sessionId) {
+      await endAnalyticsSession(sessionId);
+      sessionStorage.removeItem('analytics_session_id');
+    }
+  } catch (error) {
+    console.debug('Analytics cleanup failed:', error);
   }
 };

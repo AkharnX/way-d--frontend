@@ -104,6 +104,11 @@ export interface RegisterData {
   last_name: string;
   birth_date: string;
   gender: 'male' | 'female' | 'other';
+  // Champs de profil de base
+  bio?: string;
+  height?: number;
+  location?: string;
+  looking_for?: 'serious' | 'casual' | 'friends' | 'unsure';
 }
 
 export interface ApiError {

@@ -25,7 +25,18 @@ const Discovery: React.FC = () => {
 
   useEffect(() => {
     loadProfiles();
+    loadStats();
   }, []);
+
+  const loadStats = async () => {
+    try {
+      const userStats = await interactionsService.getUserStats();
+      setStats(userStats);
+    } catch (error) {
+      console.warn('Could not load user stats:', error);
+      // Keep default stats
+    }
+  };
 
   const loadProfiles = async () => {
     try {
@@ -34,11 +45,22 @@ const Discovery: React.FC = () => {
       console.log('🔄 Loading filtered discovery profiles...');
       
       // Use the backend-optimized discover endpoint that excludes already interacted profiles
-      const data = await profileService.getDiscoverProfiles();
+      const data = await profileService.getFilteredDiscoverProfiles();
       console.log(`📊 Loaded ${data.length} filtered profiles for discovery`);
       
       if (data.length === 0) {
-        setError('Aucun nouveau profil à découvrir pour le moment. Revenez plus tard !');
+        // Try to refresh the profiles from the regular endpoint as fallback
+        try {
+          const fallbackData = await profileService.getDiscoverProfiles();
+          if (fallbackData.length > 0) {
+            setProfiles(fallbackData);
+            setCurrentProfileIndex(0);
+          } else {
+            setError('Aucun nouveau profil à découvrir pour le moment. Revenez plus tard !');
+          }
+        } catch (fallbackError) {
+          setError('Aucun nouveau profil à découvrir pour le moment. Revenez plus tard !');
+        }
       } else {
         setProfiles(data);
         setCurrentProfileIndex(0);
@@ -89,6 +111,27 @@ const Discovery: React.FC = () => {
       setLastAction({ type: 'like', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
     } catch (error: any) {
       logError('Error liking profile:', error);
+      
+      // Handle 409 "Already liked" error gracefully
+      if (error.response?.status === 409 && error.response?.data?.error === 'Already liked') {
+        console.log(`⚠️ Profile ${currentProfile.first_name} was already liked - removing from discovery`);
+        
+        // Remove this profile from the list and move to next
+        removeCurrentProfileAndNext();
+        
+        // Update stats assuming we already liked them
+        setStats(prevStats => ({
+          ...prevStats,
+          totalLikes: prevStats.totalLikes + 1
+        }));
+        
+        // Show a more gentle message
+        setLastAction({ type: 'like', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
+        
+        return; // Don't show error message
+      }
+      
+      // Show error for other cases
       setError(getErrorMessage(error));
     }
   };
@@ -113,6 +156,26 @@ const Discovery: React.FC = () => {
       setLastAction({ type: 'dislike', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
     } catch (error: any) {
       logError('Error disliking profile:', error);
+      
+      // Handle 409 "Already disliked" error gracefully
+      if (error.response?.status === 409 && error.response?.data?.error === 'Already disliked') {
+        console.log(`⚠️ Profile ${currentProfile.first_name} was already disliked - removing from discovery`);
+        
+        // Remove this profile from the list and move to next
+        removeCurrentProfileAndNext();
+        
+        // Update stats assuming we already disliked them
+        setStats(prevStats => ({
+          ...prevStats,
+          totalDislikes: prevStats.totalDislikes + 1
+        }));
+        
+        setLastAction({ type: 'dislike', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
+        
+        return; // Don't show error message
+      }
+      
+      // Show error for other cases
       setError(getErrorMessage(error));
     }
   };
@@ -272,15 +335,15 @@ const Discovery: React.FC = () => {
               className="w-20 h-20 bg-white/90 hover:bg-red-50 text-gray-600 hover:text-red-500 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-110 shadow-xl hover:shadow-2xl backdrop-blur-sm border-2 border-gray-200 hover:border-red-300"
               title="Passer"
             >
-              <X className="w-10 h-10" />
+              <X className="w-8 h-8" />
             </button>
             
             <button
               onClick={handleLike}
-              className="w-24 h-24 bg-way-d-secondary hover:bg-way-d-secondary/90 text-white rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-110 shadow-xl hover:shadow-2xl"
+              className="w-20 h-20 bg-way-d-secondary hover:bg-way-d-secondary/90 text-white rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-110 shadow-xl hover:shadow-2xl"
               title="J'aime"
             >
-              <Heart className="w-12 h-12 fill-current" />
+              <Heart className="w-8 h-8 fill-current" />
             </button>
           </div>
         </div>

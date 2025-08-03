@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { authService, ensureValidToken, cleanupTokens } from '../services/api';
+import { authService } from '../services/api';
 import { User } from '../types';
 import { logError } from '../utils/errorUtils';
+import { ensureValidToken, validateAndCleanupTokens, cleanupTokens } from '../utils/tokenUtils';
 
 interface SecurityContextType {
   user: User | null;
@@ -55,8 +56,18 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     
     try {
+      // Check if we have tokens before trying to validate
+      const accessToken = localStorage.getItem('access_token');
+      const refreshToken = localStorage.getItem('refresh_token');
+      
+      if (!accessToken && !refreshToken) {
+        // No tokens available, skip token validation
+        setIsLoading(false);
+        return;
+      }
+      
       // Check if we have valid tokens
-      const token = await ensureValidToken();
+      const token = localStorage.getItem('access_token');
       
       if (token) {
         const userData = await authService.getCurrentUser();
@@ -64,13 +75,19 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
         updateActivity();
         calculateSecurityLevel(userData);
         
-        // Set session expiry based on token
-        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-        setSessionExpiry(new Date(tokenPayload.exp * 1000));
+        // Set session expiry based on token (if JWT)
+        try {
+          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+          setSessionExpiry(new Date(tokenPayload.exp * 1000));
+        } catch {
+          // If not JWT, set a default expiry
+          setSessionExpiry(new Date(Date.now() + 24 * 60 * 60 * 1000));
+        }
       }
     } catch (error) {
       logError('Security initialization failed:', error);
-      await cleanupTokens();
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     } finally {
       setIsLoading(false);
     }
@@ -176,18 +193,23 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
       setSessionExpiry(null);
       setLoginAttempts(0);
       setSecurityLevel('none');
-      await cleanupTokens();
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     }
   };
 
   const refreshSession = async (): Promise<boolean> => {
     try {
-      const token = await ensureValidToken();
+      const token = localStorage.getItem('access_token');
       
       if (token) {
         updateActivity();
-        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-        setSessionExpiry(new Date(tokenPayload.exp * 1000));
+        try {
+          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+          setSessionExpiry(new Date(tokenPayload.exp * 1000));
+        } catch {
+          setSessionExpiry(new Date(Date.now() + 24 * 60 * 60 * 1000));
+        }
         return true;
       }
       

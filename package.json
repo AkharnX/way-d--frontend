@@ -1,13 +1,20 @@
 {
-  "name": "frontend",
+  "name": "way-d-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "Way-D - Application de rencontres moderne",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "./tools/scripts/test-frontend-fixes.sh",
+    "test:all": "./tools/scripts/test-all-fixes.js",
+    "diagnostic": "./tools/scripts/production-diagnostic.sh",
+    "validate": "./tools/scripts/validate-project.sh",
+    "start:dev": "./tools/scripts/way-d.sh",
+    "clean": "./tools/scripts/cleanup-project.sh"
   },
   "dependencies": {
     "axios": "^1.10.0",

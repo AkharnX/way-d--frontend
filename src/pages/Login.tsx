@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   
   const [formData, setFormData] = useState({
@@ -14,6 +15,14 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Show message from email verification if available
+  React.useEffect(() => {
+    if (location.state?.message) {
+      // You could show this in a toast or similar UI component
+      console.log('Login message:', location.state.message);
+    }
+  }, [location.state]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -32,7 +41,7 @@ const Login: React.FC = () => {
 
     try {
       await login(formData);
-      navigate('/app', { replace: true });
+      navigate('/post-login-redirect', { replace: true });
     } catch (err: any) {
       setError(
         err.response?.data?.message || 

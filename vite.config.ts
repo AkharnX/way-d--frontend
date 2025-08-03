@@ -22,6 +22,36 @@ export default defineConfig({
         target: 'http://localhost:8082',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/interactions/, '/api')
+      },
+      '/api/events': {
+        target: 'http://localhost:8083',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/events/, '/api/events')
+      },
+      '/api/payments': {
+        target: 'http://localhost:8084',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/payments/, '/api/payments')
+      },
+      '/api/notifications': {
+        target: 'http://localhost:8085',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/notifications/, '/api/notifications')
+      },
+      '/api/moderation': {
+        target: 'http://localhost:8086',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/moderation/, '/api/moderation')
+      },
+      '/api/analytics': {
+        target: 'http://localhost:8087',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/analytics/, '/api/v1')
+      },
+      '/api/admin': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/admin/, '/api/v1')
       }
     }
   },

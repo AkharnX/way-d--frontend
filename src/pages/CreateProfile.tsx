@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { profileService } from '../services/api';
-import { User, Upload, MapPin, Calendar, Heart } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { profileService, authService } from '../services/api';
+import { User, Upload, MapPin, Calendar, Heart, AlertCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 
 interface ProfileForm {
@@ -27,8 +27,12 @@ interface DynamicData {
 
 function CreateProfile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
-  const [dynamicDataLoading, setDynamicDataLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [isRequired, setIsRequired] = useState(false);
+
+  // Pré-remplir les données depuis l'état de navigation ou l'utilisateur connecté
   const [formData, setFormData] = useState<ProfileForm>({
     first_name: '',
     last_name: '',
@@ -58,13 +62,40 @@ function CreateProfile() {
   const [newInterest, setNewInterest] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
 
-  // Load dynamic data on component mount
+  // Load dynamic data and user data on component mount
   useEffect(() => {
     loadDynamicData();
+    initializeUserData();
   }, []);
 
+  const initializeUserData = async () => {
+    try {
+      // Vérifier si c'est un profil requis depuis la navigation
+      if (location.state?.required) {
+        setIsRequired(true);
+      }
+
+      // Récupérer les données utilisateur actuelles
+      const currentUser = await authService.getCurrentUser();
+      if (currentUser) {
+        // Calculer l'âge depuis la date de naissance
+        const birthDate = new Date(currentUser.birth_date);
+        const age = new Date().getFullYear() - birthDate.getFullYear();
+        
+        setFormData(prev => ({
+          ...prev,
+          first_name: currentUser.first_name || '',
+          last_name: currentUser.last_name || '',
+          age: age || 18
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+      setError('Erreur lors du chargement des données utilisateur');
+    }
+  };
+
   const loadDynamicData = async () => {
-    setDynamicDataLoading(true);
     try {
       const [interests, professions, education, lookingFor] = await Promise.all([
         profileService.getInterestsSuggestions(),
@@ -82,8 +113,6 @@ function CreateProfile() {
     } catch (error) {
       console.error('Error loading dynamic data:', error);
       // Keep fallback data that's already set in state
-    } finally {
-      setDynamicDataLoading(false);
     }
   };
 
@@ -132,13 +161,28 @@ function CreateProfile() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+
+    // Validation des champs requis
+    if (!formData.first_name || !formData.last_name) {
+      setError('Le prénom et le nom sont obligatoires');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.age < 18) {
+      setError('Vous devez avoir au moins 18 ans pour utiliser cette application');
+      setLoading(false);
+      return;
+    }
 
     try {
       await profileService.createProfile(formData);
-      navigate('/profile');
+      // Profile créé avec succès - redirection obligatoire vers l'app
+      navigate('/app', { replace: true });
     } catch (error: any) {
       console.error('Error creating profile:', error);
-      alert('Erreur lors de la création du profil: ' + (error.response?.data?.message || error.message));
+      setError('Erreur lors de la création du profil: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
@@ -148,13 +192,30 @@ function CreateProfile() {
     <div className="min-h-screen gradient-bg">
       <PageHeader 
         title="Créer votre profil"
-        showBack={true}
-        customBackAction={() => navigate('/app')}
+        showBack={!isRequired}
+        customBackAction={isRequired ? undefined : () => navigate('/app')}
       />
       
       <div className="p-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-10">
+            {/* Message d'alerte si le profil est requis */}
+            {isRequired && (
+              <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3">
+                <AlertCircle className="text-orange-600 w-5 h-5" />
+                <p className="text-orange-800 font-medium">
+                  Vous devez créer votre profil pour accéder à l'application
+                </p>
+              </div>
+            )}
+
+            {/* Message d'erreur */}
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+                {error}
+              </div>
+            )}
+
             <div className="text-center mb-10">
               <div className="mb-6">
                 <img 
@@ -163,8 +224,12 @@ function CreateProfile() {
                   className="h-16 w-auto mx-auto"
                 />
               </div>
-              <h1 className="text-4xl font-bold way-d-primary mb-3">Créer votre profil</h1>
-              <p className="text-gray-600 text-lg">Montrez qui vous êtes vraiment</p>
+              <h1 className="text-4xl font-bold way-d-primary mb-3">
+                {isRequired ? 'Finalisez votre inscription' : 'Créer votre profil'}
+              </h1>
+              <p className="text-gray-600 text-lg">
+                {isRequired ? 'Complétez votre profil pour commencer' : 'Montrez qui vous êtes vraiment'}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-10">
@@ -352,7 +417,7 @@ function CreateProfile() {
                 <button
                   type="button"
                   onClick={() => addInterest(newInterest)}
-                  className="px-4 py-2 bg-cyan-400 text-slate-900 rounded-md hover:bg-opacity-80"
+                  className="px-4 py-2 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90"
                 >
                   Ajouter
                 </button>
@@ -376,13 +441,13 @@ function CreateProfile() {
                 {formData.interests.map((interest) => (
                   <span
                     key={interest}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-cyan-400 text-slate-900"
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-way-d-secondary text-white"
                   >
                     {interest}
                     <button
                       type="button"
                       onClick={() => removeInterest(interest)}
-                      className="ml-2 text-slate-900 hover:text-gray-600"
+                      className="ml-2 text-white hover:text-gray-200"
                     >
                       ×
                     </button>
@@ -409,7 +474,7 @@ function CreateProfile() {
                 <button
                   type="button"
                   onClick={addPhoto}
-                  className="px-4 py-2 bg-cyan-400 text-slate-900 rounded-md hover:bg-opacity-80"
+                  className="px-4 py-2 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90"
                 >
                   Ajouter Photo
                 </button>
@@ -439,7 +504,7 @@ function CreateProfile() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-cyan-400 text-slate-900 py-3 px-4 rounded-md font-medium hover:bg-opacity-80 disabled:opacity-50"
+                className="w-full bg-way-d-secondary text-white py-3 px-4 rounded-md font-medium hover:bg-way-d-secondary/90 disabled:opacity-50"
               >
                 {loading ? 'Création...' : 'Créer mon profil'}
               </button>

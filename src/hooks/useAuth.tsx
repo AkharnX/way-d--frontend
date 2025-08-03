@@ -1,16 +1,18 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { User, LoginData, RegisterData } from '../types';
-import { authService, setTokens, clearTokens, validateAndCleanupTokens } from '../services/api';
+import { authService, setTokens, clearTokens, profileService } from '../services/api';
 import { logError } from '../utils/errorUtils';
+import { validateAndCleanupTokens } from '../utils/tokenUtils';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (data: LoginData) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<{ message: string; verification_code?: string; instructions?: string }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  checkAndRedirectToProfile: () => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,10 +35,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      // First try to validate and cleanup tokens if needed
-      const tokensValid = await validateAndCleanupTokens();
+      // Simple token validation
+      const token = localStorage.getItem('access_token');
       
-      if (tokensValid) {
+      if (token) {
         try {
           const currentUser = await authService.getCurrentUser();
           setUser(currentUser);
@@ -72,10 +74,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(null);
           }
         }
-      } else {
-        // No valid tokens, make sure user is null
-        setUser(null);
-      }
+        } else {
+          // No valid token, make sure user is null
+          setUser(null);
+        }
       
       setLoading(false);
     };
@@ -129,8 +131,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (data: RegisterData) => {
     try {
-      await authService.register(data);
-      // After successful registration, user needs to login
+      // 1. Créer le compte utilisateur
+      const response = await authService.register(data);
+      
+      // 2. Si l'inscription a réussi ET qu'on a des données de profil, créer le profil automatiquement
+      // Note: On attend que l'email soit vérifié avant de créer le profil
+      // Le profil sera créé lors de la connexion après vérification email
+      
+      // Return the response so the component can handle the verification code
+      return response;
     } catch (error) {
       logError('Registration failed:', error);
       throw error;
@@ -149,6 +158,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Check if user has a profile after successful login
+  const checkAndRedirectToProfile = async () => {
+    try {
+      // Try to get the user's profile
+      const profile = await profileService.getProfile();
+      
+      // Vérifier que le profil est complet (au minimum first_name et last_name)
+      if (!profile || !profile.first_name || !profile.last_name) {
+        return 'create-profile';
+      }
+      
+      // If successful, user has a complete profile - can continue to app
+      return 'dashboard';
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // Profile doesn't exist - check if we have profile data from registration to auto-create
+        const profileData = localStorage.getItem('pending_profile_data');
+        
+        if (profileData) {
+          try {
+            console.log('🔄 Attempting automatic profile creation...');
+            const data = JSON.parse(profileData);
+            
+            // Try to create basic profile automatically
+            await profileService.createBasicProfile(data);
+            
+            // Clear the stored data after successful creation
+            localStorage.removeItem('pending_profile_data');
+            
+            console.log('✅ Automatic profile creation successful!');
+            
+            // Check if profile was created successfully
+            try {
+              const newProfile = await profileService.getProfile();
+              if (newProfile && newProfile.first_name && newProfile.last_name) {
+                return 'dashboard';
+              } else {
+                return 'create-profile';
+              }
+            } catch (checkError) {
+              return 'create-profile';
+            }
+            
+          } catch (createError: any) {
+            logError('Automatic profile creation failed:', createError);
+            
+            // If auto-creation fails, still redirect to manual creation
+            // but keep the profile data for pre-filling the form
+            return 'create-profile';
+          }
+        }
+        
+        // No profile data available - redirect to manual profile creation
+        return 'create-profile';
+      }
+      // Other errors - still force profile creation for security
+      logError('Error checking profile:', error);
+      return 'create-profile';
+    }
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -156,6 +226,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     isAuthenticated: !!user,
+    checkAndRedirectToProfile,
   };
 
   return (
