@@ -17,6 +17,7 @@ interface RegistrationData {
   bio: string;
   height: number;
   location: string;
+  country: string;
   occupation: string;
   education: string;
   
@@ -48,6 +49,7 @@ const Register: React.FC = () => {
     bio: '',
     height: 170,
     location: '',
+    country: '',
     occupation: '',
     education: '',
     looking_for: 'serious',
@@ -395,13 +397,33 @@ const Register: React.FC = () => {
             <MapPin className="inline w-4 h-4 mr-2" />
             Localisation *
           </label>
-          <input
-            type="text"
-            value={formData.location}
-            onChange={(e) => handleInputChange('location', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-            placeholder="Paris, France"
-          />
+          <div className="space-y-3">
+            <select
+              value={formData.country || ''}
+              onChange={(e) => handleInputChange('country', e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+            >
+              <option value="">Sélectionnez votre pays</option>
+              <option value="FR">🇫🇷 France</option>
+              <option value="BE">🇧🇪 Belgique</option>
+              <option value="CH">🇨🇭 Suisse</option>
+              <option value="CA">🇨🇦 Canada</option>
+              <option value="MA">🇲🇦 Maroc</option>
+              <option value="DZ">🇩🇿 Algérie</option>
+              <option value="TN">🇹🇳 Tunisie</option>
+              <option value="SN">🇸🇳 Sénégal</option>
+              <option value="CI">🇨🇮 Côte d'Ivoire</option>
+              <option value="CM">🇨🇲 Cameroun</option>
+              <option value="OTHER">🌍 Autre</option>
+            </select>
+            <input
+              type="text"
+              value={formData.location}
+              onChange={(e) => handleInputChange('location', e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+              placeholder="Ville précise (ex: Paris 15ème, Lyon Centre, Casablanca Maarif...)"
+            />
+          </div>
           {errors.location && <p className="text-red-500 text-sm mt-1">{errors.location}</p>}
         </div>
 
@@ -645,7 +667,7 @@ const Register: React.FC = () => {
         <div className="max-w-3xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-way-d-primary to-way-d-secondary bg-clip-text text-transparent mb-4">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-[#021533] to-[#40BDE0] bg-clip-text text-transparent mb-4">
               Rejoignez Way-d
             </h1>
             <p className="text-gray-600 text-lg">
@@ -690,7 +712,7 @@ const Register: React.FC = () => {
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="flex items-center px-8 py-3 bg-gradient-to-r from-way-d-primary to-way-d-secondary text-white rounded-xl hover:from-way-d-primary/90 hover:to-way-d-secondary/90 transition-all transform hover:scale-105"
+                  className="flex items-center px-8 py-3 bg-gradient-to-r from-[#021533] to-[#40BDE0] text-white rounded-xl hover:from-[#021533]/90 hover:to-[#40BDE0]/90 transition-all transform hover:scale-105"
                 >
                   Suivant
                   <ArrowRight className="w-5 h-5 ml-2" />
@@ -700,7 +722,7 @@ const Register: React.FC = () => {
                   type="button"
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="flex items-center px-8 py-3 bg-gradient-to-r from-way-d-primary to-way-d-secondary text-white rounded-xl hover:from-way-d-primary/90 hover:to-way-d-secondary/90 transition-all transform hover:scale-105 disabled:opacity-50"
+                  className="flex items-center px-8 py-3 bg-gradient-to-r from-[#021533] to-[#40BDE0] text-white rounded-xl hover:from-[#021533]/90 hover:to-[#40BDE0]/90 transition-all transform hover:scale-105 disabled:opacity-50"
                 >
                   {loading ? (
                     <>

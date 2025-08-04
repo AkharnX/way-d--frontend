@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Profile } from '../types';
 import { profileService, interactionsService } from '../services/api';
 import { logError, getErrorMessage } from '../utils/errorUtils';
 import { Heart, X, MapPin, Briefcase, Sparkles, RotateCcw, TrendingUp } from 'lucide-react';
 
 const ModernDiscovery: React.FC = () => {
+  const navigate = useNavigate();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -459,11 +461,19 @@ const ModernDiscovery: React.FC = () => {
               <button
                 onClick={() => {
                   closeMatchModal();
-                  // Navigate to messages could be added here
+                  // Navigate to messages with the new match
+                  if (matchModal.profile) {
+                    navigate('/app/messages', { 
+                      state: { 
+                        newMatch: matchModal.profile,
+                        message: `Félicitations ! Vous avez matché avec ${matchModal.profile.first_name}. Commencez la conversation !`
+                      }
+                    });
+                  }
                 }}
                 className="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:from-pink-600 hover:to-purple-700 transition-all font-medium"
               >
-                Envoyer un message
+                💬 Envoyer un message
               </button>
               <button
                 onClick={closeMatchModal}

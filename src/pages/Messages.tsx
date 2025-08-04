@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import type { Match, Message } from '../types';
 import { interactionsService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { logError, getErrorMessage } from '../utils/errorUtils';
-import { Send, Heart, Search, MoreVertical, Loader2, MessageCircle } from 'lucide-react';
+import { Send, Heart, Search, MoreVertical, Loader2, MessageCircle, CheckCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 
 const Messages: React.FC = () => {
+  const location = useLocation();
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -15,11 +17,18 @@ const Messages: React.FC = () => {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [newMatchNotification, setNewMatchNotification] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
     loadMatches();
-  }, []);
+    // Check if we came from a new match
+    if (location.state?.message) {
+      setNewMatchNotification(location.state.message);
+      // Clear notification after 5 seconds
+      setTimeout(() => setNewMatchNotification(null), 5000);
+    }
+  }, [location.state]);
 
   const loadMatches = async () => {
     try {
@@ -113,6 +122,14 @@ const Messages: React.FC = () => {
 
   return (
     <div className="h-screen gradient-bg flex flex-col">
+      {/* New Match Notification */}
+      {newMatchNotification && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-3 animate-bounce">
+          <CheckCircle className="w-6 h-6 text-white" />
+          <span className="font-medium">{newMatchNotification}</span>
+        </div>
+      )}
+      
       {/* Mobile Header */}
       <div className="bg-white/95 backdrop-blur-sm border-b border-gray-200 px-6 py-4 lg:hidden">
         <PageHeader 

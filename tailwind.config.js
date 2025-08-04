@@ -35,6 +35,8 @@ export default {
           800: '#E65100',
           900: '#BF360C',
         },
+        'way-d-primary': '#021533',
+        'way-d-secondary': '#40BDE0',
         white: '#FFFFFF',
       },
     },
