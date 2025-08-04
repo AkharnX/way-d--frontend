@@ -335,25 +335,43 @@ export const authService = {
   },
 };
 
-// Utility function to convert location string to coordinates
+// Utility function to convert location string to coordinates for Côte d'Ivoire
 const getLocationCoordinates = async (locationString: string): Promise<{ lat: number; lng: number } | null> => {
-  // For now, return a mock coordinate for Paris as example
-  // In production, you would use a geocoding service like Google Maps API
+  // Mapping of Côte d'Ivoire cities and districts to coordinates
   const locationMap: { [key: string]: { lat: number; lng: number } } = {
-    'paris': { lat: 48.8566, lng: 2.3522 },
-    'lyon': { lat: 45.764, lng: 4.8357 },
-    'marseille': { lat: 43.2965, lng: 5.3698 },
-    'toulouse': { lat: 43.6047, lng: 1.4442 },
-    'nice': { lat: 43.7102, lng: 7.2620 },
-    'nantes': { lat: 47.2184, lng: -1.5536 },
-    'montpellier': { lat: 43.6110, lng: 3.8767 },
-    'strasbourg': { lat: 48.5734, lng: 7.7521 },
-    'bordeaux': { lat: 44.8378, lng: -0.5792 },
-    'lille': { lat: 50.6292, lng: 3.0573 }
+    // Abidjan districts
+    'abidjan': { lat: 5.3600, lng: -4.0083 },
+    'cocody': { lat: 5.3474, lng: -3.9857 },
+    'plateau': { lat: 5.3189, lng: -4.0245 },
+    'yopougon': { lat: 5.3364, lng: -4.0822 },
+    'marcory': { lat: 5.2909, lng: -3.9827 },
+    'treichville': { lat: 5.2947, lng: -4.0030 },
+    'abobo': { lat: 5.4167, lng: -4.0167 },
+    'adjame': { lat: 5.3667, lng: -4.0167 },
+    'attecoube': { lat: 5.3167, lng: -4.0500 },
+    'koumassi': { lat: 5.2833, lng: -3.9667 },
+    'port-bouet': { lat: 5.2500, lng: -3.9167 },
+    
+    // Other major cities
+    'yamoussoukro': { lat: 6.8276, lng: -5.2893 },
+    'bouake': { lat: 7.6884, lng: -5.0306 },
+    'daloa': { lat: 6.8772, lng: -6.4503 },
+    'san-pedro': { lat: 4.7467, lng: -6.6364 },
+    'korhogo': { lat: 9.4581, lng: -5.6296 },
+    'man': { lat: 7.4125, lng: -7.5544 },
+    'gagnoa': { lat: 6.1316, lng: -5.9506 },
+    'divo': { lat: 5.8397, lng: -5.3572 },
+    'abengourou': { lat: 6.7294, lng: -3.4960 },
+    'grand-bassam': { lat: 5.2111, lng: -3.7378 },
+    'sassandra': { lat: 4.9500, lng: -6.0833 }
   };
   
-  const city = locationString.toLowerCase().split(',')[0].trim();
-  return locationMap[city] || { lat: 48.8566, lng: 2.3522 }; // Default to Paris
+  // Extract city name from location string (handle "City - District" or "City" format)
+  const city = locationString.toLowerCase()
+    .split('-')[0].trim()
+    .replace(/\s+/g, '-');
+    
+  return locationMap[city] || locationMap['abidjan']; // Default to Abidjan
 };
 
 // Transform frontend ProfileForm data to backend Profile model format
@@ -463,20 +481,27 @@ const transformBackendDataToFrontend = (backendData: any) => {
   return frontendData;
 };
 
-// Reverse geocode coordinates to city name
+// Reverse geocode coordinates to city name for Côte d'Ivoire
 const reverseGeocodeLocation = (lat: number, lng: number): string => {
-  // Simple reverse mapping for known coordinates
+  // Known locations in Côte d'Ivoire
   const knownLocations = [
-    { name: 'Paris', lat: 48.8566, lng: 2.3522, tolerance: 0.1 },
-    { name: 'Lyon', lat: 45.7640, lng: 4.8357, tolerance: 0.1 },
-    { name: 'Marseille', lat: 43.2965, lng: 5.3698, tolerance: 0.1 },
-    { name: 'Toulouse', lat: 43.6047, lng: 1.4442, tolerance: 0.1 },
-    { name: 'Nice', lat: 43.7102, lng: 7.2620, tolerance: 0.1 },
-    { name: 'Nantes', lat: 47.2184, lng: -1.5536, tolerance: 0.1 },
-    { name: 'Montpellier', lat: 43.6110, lng: 3.8767, tolerance: 0.1 },
-    { name: 'Strasbourg', lat: 48.5734, lng: 7.7521, tolerance: 0.1 },
-    { name: 'Bordeaux', lat: 44.8378, lng: -0.5792, tolerance: 0.1 },
-    { name: 'Lille', lat: 50.6292, lng: 3.0573, tolerance: 0.1 }
+    { name: 'Abidjan - Cocody', lat: 5.3474, lng: -3.9857, tolerance: 0.05 },
+    { name: 'Abidjan - Plateau', lat: 5.3189, lng: -4.0245, tolerance: 0.05 },
+    { name: 'Abidjan - Yopougon', lat: 5.3364, lng: -4.0822, tolerance: 0.05 },
+    { name: 'Abidjan - Marcory', lat: 5.2909, lng: -3.9827, tolerance: 0.05 },
+    { name: 'Abidjan - Treichville', lat: 5.2947, lng: -4.0030, tolerance: 0.05 },
+    { name: 'Abidjan', lat: 5.3600, lng: -4.0083, tolerance: 0.1 },
+    { name: 'Yamoussoukro', lat: 6.8276, lng: -5.2893, tolerance: 0.1 },
+    { name: 'Bouaké', lat: 7.6884, lng: -5.0306, tolerance: 0.1 },
+    { name: 'Daloa', lat: 6.8772, lng: -6.4503, tolerance: 0.1 },
+    { name: 'San-Pédro', lat: 4.7467, lng: -6.6364, tolerance: 0.1 },
+    { name: 'Korhogo', lat: 9.4581, lng: -5.6296, tolerance: 0.1 },
+    { name: 'Man', lat: 7.4125, lng: -7.5544, tolerance: 0.1 },
+    { name: 'Gagnoa', lat: 6.1316, lng: -5.9506, tolerance: 0.1 },
+    { name: 'Divo', lat: 5.8397, lng: -5.3572, tolerance: 0.1 },
+    { name: 'Abengourou', lat: 6.7294, lng: -3.4960, tolerance: 0.1 },
+    { name: 'Grand-Bassam', lat: 5.2111, lng: -3.7378, tolerance: 0.1 },
+    { name: 'Sassandra', lat: 4.9500, lng: -6.0833, tolerance: 0.1 }
   ];
 
   for (const location of knownLocations) {

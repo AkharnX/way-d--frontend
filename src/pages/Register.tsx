@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/api';
-import { User, Mail, Lock, Heart, MapPin, Camera, Calendar, Briefcase, GraduationCap, ArrowRight, ArrowLeft, Check, Upload, X } from 'lucide-react';
+import { User, Mail, Lock, Heart, MapPin, Camera, Calendar, Briefcase, GraduationCap, ArrowRight, ArrowLeft, Check, Upload, X, Navigation } from 'lucide-react';
+import { POPULAR_COTE_DIVOIRE_LOCATIONS, getUserLocation, findClosestCity } from '../data/cotedivoire-locations';
 
 interface RegistrationData {
   // Étape 1: Informations de base
@@ -49,7 +50,7 @@ const Register: React.FC = () => {
     bio: '',
     height: 170,
     location: '',
-    country: '',
+    country: 'CI', // Côte d'Ivoire par défaut
     occupation: '',
     education: '',
     looking_for: 'serious',
@@ -57,8 +58,34 @@ const Register: React.FC = () => {
     photos: [],
     min_age: 18,
     max_age: 35,
-    max_distance: 50
+    max_distance: 20
   });
+
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  // Géolocalisation automatique
+  useEffect(() => {
+    const getAutoLocation = async () => {
+      setLocationLoading(true);
+      try {
+        const coords = await getUserLocation();
+        const closestCity = findClosestCity(coords.lat, coords.lng);
+        const suggestions = POPULAR_COTE_DIVOIRE_LOCATIONS.filter(loc => 
+          loc.toLowerCase().includes(closestCity.toLowerCase())
+        );
+        if (suggestions.length > 0) {
+          handleInputChange('location', suggestions[0]);
+        }
+      } catch (error) {
+        console.warn('Géolocalisation échouée:', error);
+        handleInputChange('location', 'Abidjan - Cocody'); // Fallback
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+
+    getAutoLocation();
+  }, []);
 
   const genderOptions = [
     { value: 'man', label: '👨 Homme' },
@@ -404,6 +431,7 @@ const Register: React.FC = () => {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
             >
               <option value="">Sélectionnez votre pays</option>
+              <option value="CI">🇨🇮 Côte d'Ivoire</option>
               <option value="FR">🇫🇷 France</option>
               <option value="BE">🇧🇪 Belgique</option>
               <option value="CH">🇨🇭 Suisse</option>
@@ -412,17 +440,55 @@ const Register: React.FC = () => {
               <option value="DZ">🇩🇿 Algérie</option>
               <option value="TN">🇹🇳 Tunisie</option>
               <option value="SN">🇸🇳 Sénégal</option>
-              <option value="CI">🇨🇮 Côte d'Ivoire</option>
               <option value="CM">🇨🇲 Cameroun</option>
               <option value="OTHER">🌍 Autre</option>
             </select>
-            <input
-              type="text"
-              value={formData.location}
-              onChange={(e) => handleInputChange('location', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-              placeholder="Ville précise (ex: Paris 15ème, Lyon Centre, Casablanca Maarif...)"
-            />
+            
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.location}
+                onChange={(e) => handleInputChange('location', e.target.value)}
+                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                placeholder="Ville précise (ex: Abidjan-Cocody, Yamoussoukro-Centre, Bouaké-Centre...)"
+                list="locations-suggestions"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  setLocationLoading(true);
+                  try {
+                    const coords = await getUserLocation();
+                    const closestCity = findClosestCity(coords.lat, coords.lng);
+                    const suggestions = POPULAR_COTE_DIVOIRE_LOCATIONS.filter(loc => 
+                      loc.toLowerCase().includes(closestCity.toLowerCase())
+                    );
+                    if (suggestions.length > 0) {
+                      handleInputChange('location', suggestions[0]);
+                    }
+                  } catch (error) {
+                    alert('Impossible d\'obtenir votre localisation. Veuillez saisir manuellement.');
+                  } finally {
+                    setLocationLoading(false);
+                  }
+                }}
+                disabled={locationLoading}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-pink-500 hover:text-pink-600 disabled:opacity-50"
+                title="Obtenir ma localisation"
+              >
+                {locationLoading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-pink-500 border-t-transparent"></div>
+                ) : (
+                  <Navigation className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+            
+            <datalist id="locations-suggestions">
+              {POPULAR_COTE_DIVOIRE_LOCATIONS.map((location) => (
+                <option key={location} value={location} />
+              ))}
+            </datalist>
           </div>
           {errors.location && <p className="text-red-500 text-sm mt-1">{errors.location}</p>}
         </div>
@@ -667,7 +733,7 @@ const Register: React.FC = () => {
         <div className="max-w-3xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-[#021533] to-[#40BDE0] bg-clip-text text-transparent mb-4">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-way-d-primary to-way-d-secondary bg-clip-text text-transparent mb-4">
               Rejoignez Way-d
             </h1>
             <p className="text-gray-600 text-lg">
@@ -712,7 +778,7 @@ const Register: React.FC = () => {
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="flex items-center px-8 py-3 bg-gradient-to-r from-[#021533] to-[#40BDE0] text-white rounded-xl hover:from-[#021533]/90 hover:to-[#40BDE0]/90 transition-all transform hover:scale-105"
+                  className="flex items-center px-8 py-3 bg-gradient-to-r from-way-d-primary to-way-d-secondary text-white rounded-xl hover:from-way-d-primary/90 hover:to-way-d-secondary/90 transition-all transform hover:scale-105"
                 >
                   Suivant
                   <ArrowRight className="w-5 h-5 ml-2" />
@@ -722,7 +788,7 @@ const Register: React.FC = () => {
                   type="button"
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="flex items-center px-8 py-3 bg-gradient-to-r from-[#021533] to-[#40BDE0] text-white rounded-xl hover:from-[#021533]/90 hover:to-[#40BDE0]/90 transition-all transform hover:scale-105 disabled:opacity-50"
+                  className="flex items-center px-8 py-3 bg-gradient-to-r from-way-d-primary to-way-d-secondary text-white rounded-xl hover:from-way-d-primary/90 hover:to-way-d-secondary/90 transition-all transform hover:scale-105 disabled:opacity-50"
                 >
                   {loading ? (
                     <>

@@ -189,16 +189,16 @@ function CreateProfile() {
   };
 
   return (
-    <div className="min-h-screen gradient-bg">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50">
       <PageHeader 
         title="Créer votre profil"
         showBack={!isRequired}
         customBackAction={isRequired ? undefined : () => navigate('/app')}
       />
       
-      <div className="p-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-10">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl p-8">
             {/* Message d'alerte si le profil est requis */}
             {isRequired && (
               <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3">
@@ -216,15 +216,8 @@ function CreateProfile() {
               </div>
             )}
 
-            <div className="text-center mb-10">
-              <div className="mb-6">
-                <img 
-                  src="/logo-name-blue.png" 
-                  alt="Way-d" 
-                  className="h-16 w-auto mx-auto"
-                />
-              </div>
-              <h1 className="text-4xl font-bold way-d-primary mb-3">
+            <div className="text-center mb-8">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-way-d-primary to-way-d-secondary bg-clip-text text-transparent mb-4">
                 {isRequired ? 'Finalisez votre inscription' : 'Créer votre profil'}
               </h1>
               <p className="text-gray-600 text-lg">
@@ -504,7 +497,7 @@ function CreateProfile() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-way-d-secondary text-white py-3 px-4 rounded-md font-medium hover:bg-way-d-secondary/90 disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-way-d-primary to-way-d-secondary text-white py-3 px-4 rounded-xl font-medium hover:from-way-d-primary/90 hover:to-way-d-secondary/90 disabled:opacity-50 transition-all transform hover:scale-105"
               >
                 {loading ? 'Création...' : 'Créer mon profil'}
               </button>

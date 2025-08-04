@@ -1,3 +1,6 @@
+import { authService, healthService } from '../services/api';
+import { setTokens, clearTokens } from './tokenUtils';
+
 interface AuthFlowStep {
   step: string;
   status: 'pending' | 'success' | 'error' | 'skipped';
@@ -52,7 +55,6 @@ class AuthFlowDiagnostic {
       this.addStep('backend-connectivity', 'pending', 'Testing backend connectivity');
       
       try {
-        const { healthService } = await import('../services/api');
         const healthResponse = await healthService.checkAuth();
         this.addStep('backend-connectivity', 'success', 'Backend is reachable', healthResponse);
       } catch (error) {
@@ -65,7 +67,6 @@ class AuthFlowDiagnostic {
         this.addStep('login-attempt', 'pending', 'Attempting login');
         
         try {
-          const { authService } = await import('../services/api');
           const loginResponse = await authService.login({ email, password });
           
           this.addStep('login-attempt', 'success', 'Login successful', {
@@ -80,7 +81,6 @@ class AuthFlowDiagnostic {
           // Step 4: Test token storage
           this.addStep('token-storage', 'pending', 'Testing token storage');
           
-          const { setTokens } = await import('./tokenUtils');
           setTokens(loginResponse.access_token, loginResponse.refresh_token);
           localStorage.setItem('user_email', email);
           
@@ -140,7 +140,6 @@ class AuthFlowDiagnostic {
         this.addStep('token-refresh', 'pending', 'Testing token refresh mechanism');
         
         try {
-          const { authService } = await import('../services/api');
           const refreshResponse = await authService.refreshToken();
           
           this.addStep('token-refresh', 'success', 'Token refresh successful', {
@@ -161,7 +160,6 @@ class AuthFlowDiagnostic {
       // Step 7: Test token cleanup
       this.addStep('token-cleanup', 'pending', 'Testing token cleanup');
       
-      const { clearTokens } = await import('./tokenUtils');
       clearTokens();
       localStorage.removeItem('user_email');
       
