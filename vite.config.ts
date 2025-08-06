@@ -29,7 +29,7 @@ export default defineConfig({
             return '/health';
           }
           // Default rewrite for other profile endpoints
-          return path.replace(/^\/api\/profile/, '/profile');
+          return path.replace(/^\/api\/profile/, '');
         }
       },
       '/api/interactions': {

@@ -33,6 +33,33 @@ interface RegistrationData {
   max_distance: number;
 }
 
+// Interface pour les valeurs par défaut intelligentes
+interface SmartDefaults {
+  minAge: number;
+  maxAge: number;
+  maxDistance: number;
+}
+
+// Fonction pour calculer des valeurs par défaut intelligentes
+const calculateSmartDefaults = (userAge: number, location: string): SmartDefaults => {
+  // Adapter les préférences selon l'âge de l'utilisateur
+  const minAge = Math.max(18, userAge - 5);
+  const maxAge = Math.min(65, userAge + 10);
+  
+  // Adapter la distance selon la localisation
+  let maxDistance = 25; // Par défaut pour les grandes villes
+  if (location.toLowerCase().includes('abidjan')) {
+    maxDistance = 30; // Plus large pour Abidjan
+  } else if (location.toLowerCase().includes('yamoussoukro') || 
+             location.toLowerCase().includes('bouake')) {
+    maxDistance = 50; // Plus large pour les villes moyennes
+  } else {
+    maxDistance = 100; // Très large pour les petites villes
+  }
+  
+  return { minAge, maxAge, maxDistance };
+};
+
 const Register: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
@@ -56,9 +83,11 @@ const Register: React.FC = () => {
     looking_for: 'serious',
     interests: [],
     photos: [],
-    min_age: 18,
-    max_age: 35,
-    max_distance: 20
+    
+    // Étape 4: Préférences de découverte avec valeurs par défaut intelligentes
+    min_age: 20, // Valeur par défaut raisonnable
+    max_age: 35, // Valeur par défaut raisonnable  
+    max_distance: 25 // Distance par défaut pour les zones urbaines
   });
 
   const [locationLoading, setLocationLoading] = useState(false);
@@ -115,6 +144,37 @@ const Register: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+
+    // Mise à jour intelligente des préférences basée sur les changements
+    if (field === 'birthdate' || field === 'location') {
+      updateSmartPreferences(field, value);
+    }
+  };
+
+  // Fonction pour mettre à jour intelligemment les préférences
+  const updateSmartPreferences = (changedField: string, newValue: any) => {
+    if (changedField === 'birthdate' && newValue) {
+      const birthDate = new Date(newValue);
+      const userAge = new Date().getFullYear() - birthDate.getFullYear();
+      const smartDefaults = calculateSmartDefaults(userAge, formData.location);
+      
+      setFormData(prev => ({
+        ...prev,
+        min_age: smartDefaults.minAge,
+        max_age: smartDefaults.maxAge
+      }));
+    }
+    
+    if (changedField === 'location' && newValue) {
+      const birthDate = new Date(formData.birthdate);
+      const userAge = birthDate ? new Date().getFullYear() - birthDate.getFullYear() : 25;
+      const smartDefaults = calculateSmartDefaults(userAge, newValue);
+      
+      setFormData(prev => ({
+        ...prev,
+        max_distance: smartDefaults.maxDistance
+      }));
     }
   };
 

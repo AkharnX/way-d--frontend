@@ -19,6 +19,21 @@ dist-ssr
 .env.production.local
 
 # Logs
+logs/*.log
+*.log
+frontend.log
+
+# Temporary files  
+temp_*.json
+*.tmp
+*.temp
+
+# Testing artifacts
+test-results/
+coverage/
+
+# Organization artifacts
+organize-project.sh
 logs/
 *.log
 

@@ -3,6 +3,58 @@ import type { AxiosResponse } from 'axios';
 import type { AuthResponse, LoginData, RegisterData, User, Profile, Match, Message } from '../types';
 import { getErrorMessage, logError } from '../utils/errorUtils';
 import { createRequestLoggerInterceptor } from '../utils/requestLogger';
+import DiscoveryCache from './discoveryCache';
+
+// Localized data fallbacks (imported from utils/localizedData.ts functionality)
+const getLocalizedInterests = (): string[] => {
+  return [
+    'Football', 'Basketball', 'Musique', 'Danse', 'Cuisine', 'Voyages',
+    'Lecture', 'Cinéma', 'Photographie', 'Art', 'Mode', 'Technologie',
+    'Fitness', 'Yoga', 'Meditation', 'Nature', 'Randonnée', 'Plage',
+    'Festivals', 'Culture africaine', 'Langues', 'Éducation',
+    'Entrepreneuriat', 'Bénévolat', 'Afrobeat', 'Coupé-décalé'
+  ];
+};
+
+const getLocalizedProfessions = (): string[] => {
+  return [
+    'Ingénieur', 'Médecin', 'Enseignant', 'Infirmier', 'Comptable',
+    'Commercial', 'Entrepreneur', 'Informaticien', 'Banquier',
+    'Avocat', 'Pharmacien', 'Architecte', 'Designer', 'Journaliste',
+    'Marketing', 'Consultant', 'Chef de projet', 'Développeur',
+    'Agriculteur', 'Commerçant', 'Artisan', 'Mécanicien',
+    'Électricien', 'Plombier', 'Chauffeur', 'Secrétaire',
+    'Gestionnaire', 'Analyste', 'Chercheur', 'Artiste',
+    'Musicien', 'Étudiant', 'Fonctionnaire'
+  ];
+};
+
+const getLocalizedEducationLevels = (): string[] => {
+  return [
+    'Aucun diplôme', 'CEPE', 'BEPC', 'BAC', 'BTS/DUT', 'Licence',
+    'Master', 'Doctorat', 'École professionnelle', 'Formation technique',
+    'Université', 'Grande école'
+  ];
+};
+
+const getLocalizedLookingForOptions = (): Array<{ value: string; label: string }> => {
+  return [
+    { value: 'serious', label: 'Relation sérieuse' },
+    { value: 'casual', label: 'Relation décontractée' },
+    { value: 'friends', label: 'Amitié' },
+    { value: 'networking', label: 'Réseautage professionnel' },
+    { value: 'unsure', label: 'Je ne sais pas encore' }
+  ];
+};
+
+const getLocalizedGenderOptions = (): Array<{ value: string; label: string }> => {
+  return [
+    { value: 'male', label: 'Homme' },
+    { value: 'female', label: 'Femme' },
+    { value: 'non-binary', label: 'Non-binaire' },
+    { value: 'other', label: 'Autre / Ne se prononce pas' }
+  ];
+};
 
 // Configuration des URLs - utilise les proxies Vite pour éviter les problèmes CORS
 const API_BASE_URL = '/api/auth'; // Auth service via proxy
@@ -181,12 +233,15 @@ const requestLoggerInterceptor = createRequestLoggerInterceptor();
   );
 });
 
+// Using the API URLs defined in the top level of api.ts
+
 // Health check services - Using dedicated health endpoints
 export const healthService = {
-  checkAuth: async (): Promise<{ status: string; service: string; timestamp: string; database?: string; version?: string }> => {
+  checkAuth: async (): Promise<HealthResponse> => {
     try {
-      // Use dedicated health endpoint
-      const response = await authApi.get('/health');
+      // Use dedicated health endpoint with correct path
+      // Fix: Utilisation du chemin correct pour le health check
+      const response = await axios.get(`${AUTH_API_URL}/health`, { timeout: 3000 });
       return {
         status: response.data.status === 'ok' ? 'healthy' : 'unhealthy',
         service: response.data.service || 'auth',
@@ -195,7 +250,8 @@ export const healthService = {
         version: response.data.version
       };
     } catch (error) {
-      throw {
+      console.warn('⚠️ Auth health check failed:', getErrorMessage(error));
+      return {
         status: 'unhealthy',
         service: 'auth',
         timestamp: new Date().toISOString(),
@@ -206,8 +262,9 @@ export const healthService = {
   
   checkProfile: async (): Promise<{ status: string; service: string; timestamp: string; database?: string; version?: string }> => {
     try {
-      // Use dedicated health endpoint
-      const response = await profileApi.get('/health');
+      // Use dedicated health endpoint with correct path
+      // Fix: Utilisation du chemin correct pour le health check
+      const response = await axios.get(`${PROFILE_API_URL}/health`, { timeout: 3000 });
       return {
         status: response.data.status === 'ok' ? 'healthy' : 'unhealthy',
         service: response.data.service || 'profile',  
@@ -216,7 +273,8 @@ export const healthService = {
         version: response.data.version
       };
     } catch (error) {
-      throw {
+      console.warn('⚠️ Profile health check failed:', getErrorMessage(error));
+      return {
         status: 'unhealthy',
         service: 'profile',
         timestamp: new Date().toISOString(),
@@ -227,8 +285,9 @@ export const healthService = {
   
   checkInteractions: async (): Promise<{ status: string; service: string; timestamp: string; database?: string; version?: string }> => {
     try {
-      // Use dedicated health endpoint
-      const response = await interactionsApi.get('/health');
+      // Use dedicated health endpoint with correct path
+      // Fix: Utilisation du chemin correct pour le health check
+      const response = await axios.get(`${INTERACTIONS_API_URL}/health`, { timeout: 3000 });
       return {
         status: response.data.status === 'ok' ? 'healthy' : 'unhealthy',
         service: response.data.service || 'interactions',
@@ -237,7 +296,8 @@ export const healthService = {
         version: response.data.version
       };
     } catch (error) {
-      throw {
+      console.warn('⚠️ Interactions health check failed:', getErrorMessage(error));
+      return {
         status: 'unhealthy',
         service: 'interactions',
         timestamp: new Date().toISOString(),
@@ -246,26 +306,38 @@ export const healthService = {
     }
   },
   
+  // Check all services at once
   checkAll: async (): Promise<{ 
-    auth: { status: string; service: string; timestamp: string; database?: string; version?: string }; 
-    profile: { status: string; service: string; timestamp: string; database?: string; version?: string }; 
-    interactions: { status: string; service: string; timestamp: string; database?: string; version?: string }; 
+    auth: { status: string; service: string; timestamp: string; database?: string; version?: string; error?: string }; 
+    profile: { status: string; service: string; timestamp: string; database?: string; version?: string; error?: string }; 
+    interactions: { status: string; service: string; timestamp: string; database?: string; version?: string; error?: string }; 
   }> => {
-    try {
-      const [auth, profile, interactions] = await Promise.allSettled([
-        healthService.checkAuth(),
-        healthService.checkProfile(),
-        healthService.checkInteractions()
-      ]);
-      
-      return { 
-        auth: auth.status === 'fulfilled' ? auth.value : { status: 'unhealthy', service: 'auth', timestamp: new Date().toISOString() },
-        profile: profile.status === 'fulfilled' ? profile.value : { status: 'unhealthy', service: 'profile', timestamp: new Date().toISOString() },
-        interactions: interactions.status === 'fulfilled' ? interactions.value : { status: 'unhealthy', service: 'interactions', timestamp: new Date().toISOString() }
-      };
-    } catch (error) {
-      throw new Error('One or more services are unavailable');
-    }
+    const [authResult, profileResult, interactionsResult] = await Promise.allSettled([
+      healthService.checkAuth(),
+      healthService.checkProfile(), 
+      healthService.checkInteractions()
+    ]);
+    
+    return {
+      auth: authResult.status === 'fulfilled' ? authResult.value : {
+        status: 'unhealthy',
+        service: 'auth',
+        timestamp: new Date().toISOString(),
+        error: authResult.status === 'rejected' ? getErrorMessage(authResult.reason) : 'Unknown error'
+      },
+      profile: profileResult.status === 'fulfilled' ? profileResult.value : {
+        status: 'unhealthy',
+        service: 'profile',
+        timestamp: new Date().toISOString(),
+        error: profileResult.status === 'rejected' ? getErrorMessage(profileResult.reason) : 'Unknown error'
+      },
+      interactions: interactionsResult.status === 'fulfilled' ? interactionsResult.value : {
+        status: 'unhealthy',
+        service: 'interactions',
+        timestamp: new Date().toISOString(),
+        error: interactionsResult.status === 'rejected' ? getErrorMessage(interactionsResult.reason) : 'Unknown error'
+      }
+    };
   }
 };
 
@@ -318,6 +390,11 @@ export const authService = {
     // Update tokens in localStorage
     setTokens(response.data.access_token, response.data.refresh_token || currentRefreshToken);
     
+    return response.data;
+  },
+
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const response = await authApi.post('/forgot-password', { email });
     return response.data;
   },
 
@@ -447,15 +524,29 @@ const transformBackendDataToFrontend = (backendData: any) => {
       console.log("🎂 Parsed birth date:", birthDate);
       const today = new Date();
       console.log("📅 Today:", today);
-      const age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
       
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        frontendData.age = age - 1;
+      // Vérifier que la date de naissance est valide
+      if (isNaN(birthDate.getTime()) || birthDate.getFullYear() < 1900 || birthDate.getFullYear() > today.getFullYear()) {
+        console.warn("⚠️ Invalid birthdate, using default age");
+        frontendData.age = 25;
       } else {
-        frontendData.age = age;
+        const age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          frontendData.age = age - 1;
+        } else {
+          frontendData.age = age;
+        }
+        
+        // Validation finale de l'âge calculé
+        if (frontendData.age < 16 || frontendData.age > 100) {
+          console.warn("⚠️ Calculated age seems invalid:", frontendData.age, "using default");
+          frontendData.age = 25;
+        }
+        
+        console.log("🧮 Final calculated age:", frontendData.age);
       }
-      console.log("🧮 Calculated age:", frontendData.age);
     } catch (error) {
       console.error('Error calculating age:', error);
       frontendData.age = 25; // Default
@@ -560,39 +651,17 @@ export const profileService = {
       console.log('✅ Final transformed profile data:', transformedData);
       return transformedData;
     } catch (error: any) {
-      // If profile doesn't exist, still try to get user data for profile creation
+      // If profile doesn't exist, try to get user data for profile creation context
       if (error.response?.status === 404) {
         try {
           const userResponse = await authApi.get('/me');
-          console.log('🔍 User data for new profile:', userResponse.data);
+          console.log('🔍 User data for new profile creation:', userResponse.data);
           
-          // For testing: return mock data with transformation
-          const mockProfileData = {
-            id: 'mock-profile-id',
-            user_id: userResponse.data.id,
-            height: 180,
-            profile_photo_url: 'https://via.placeholder.com/150/4F46E5/FFFFFF?text=TP',
-            location: 'POINT(2.3522 48.8566)', // Paris in WKT format
-            occupation: 'Développeur Full-Stack',
-            trait: 'Passionné de technologie et amateur de voyages. J\'aime découvrir de nouvelles cultures et partager mes expériences.',
-            birthdate: '1995-03-15T00:00:00.000Z',
-            active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            first_name: userResponse.data.first_name,
-            last_name: userResponse.data.last_name
-          };
-          
-          console.log('🧪 Testing with mock backend data:', mockProfileData);
-          console.log('🎂 Mock birthdate:', mockProfileData.birthdate);
-          
-          const transformedMockData = transformBackendDataToFrontend(mockProfileData);
-          console.log('✅ Transformed mock data:', transformedMockData);
-          console.log('🎂 Final age in transformed data:', transformedMockData.age);
-          
-          return transformedMockData;
+          // Don't return fake data - let the 404 error bubble up so the component
+          // can handle profile creation properly
+          throw error;
         } catch (userError) {
-          throw error; // Re-throw original error if user fetch also fails
+          throw error; // Re-throw original 404 error
         }
       }
       throw error;
@@ -675,84 +744,230 @@ export const profileService = {
     await profileApi.post('/activity');
   },
 
-  // Discovery profiles - optimized to exclude already interacted profiles
+  // Discovery profiles - simplified and reliable
   getDiscoverProfiles: async (offset: number = 0): Promise<Profile[]> => {
     try {
-      // Use the optimized filtered discovery method
-      return await profileService.getFilteredDiscoverProfiles();
-    } catch (error) {
-      // Fallback to original method if filtered discovery fails
-      console.warn('Filtered discovery failed, using original method:', error);
+      console.log(`🔍 Fetching discovery profiles with offset ${offset}...`);
       const response: AxiosResponse<Profile[]> = await profileApi.get(`/discover?offset=${offset}`);
-      return response.data;
+      const profiles = response.data;
+      
+      // Vérifier que le résultat est un tableau valide
+      if (!profiles || !Array.isArray(profiles)) {
+        console.warn('❌ Discovery endpoint returned invalid data:', profiles);
+        return [];
+      }
+      
+      // Transformer les données pour assurer la compatibilité frontend
+      const transformedProfiles = profiles.map(profile => {
+        try {
+          return transformBackendDataToFrontend(profile);
+        } catch (transformError) {
+          console.warn('❌ Failed to transform profile:', profile, transformError);
+          return null;
+        }
+      }).filter(profile => profile !== null);
+      
+      console.log(`✅ Successfully loaded ${transformedProfiles.length} discovery profiles`);
+      return transformedProfiles;
+      
+    } catch (error: any) {
+      console.error('❌ Discovery profiles fetch failed:', error);
+      
+      // Si c'est une erreur d'authentification, la propager
+      if (error.response?.status === 401) {
+        throw error;
+      }
+      
+      // Pour les autres erreurs, retourner un tableau vide
+      return [];
     }
   },
 
   // Get all available profiles for discovery (excluding already interacted ones)
   getFilteredDiscoverProfiles: async (): Promise<Profile[]> => {
     try {
-      console.log('🔍 Fetching filtered discovery profiles...');
+      console.log('🔍 Fetching filtered discovery profiles (optimized)...');
       
-      // Step 1: Get all available profiles
-      let allProfiles: Profile[] = [];
-      try {
-        // Try to get all profiles from backend
-        const response: AxiosResponse<Profile[]> = await profileApi.get('/all');
-        allProfiles = response.data;
-        console.log(`📊 Found ${allProfiles.length} total profiles`);
-      } catch (error: any) {
-        // Fallback: use discover endpoint with high offset to get more profiles
-        console.log('⚠️ /all endpoint not available, using /discover with pagination');
-        let offset = 0;
-        const limit = 50;
-        
-        while (true) {
-          const batch: AxiosResponse<Profile[]> = await profileApi.get(`/discover?offset=${offset}&limit=${limit}`);
-          if (batch.data.length === 0) break;
-          
-          allProfiles = allProfiles.concat(batch.data);
-          offset += limit;
-          
-          // Safety limit to avoid infinite loops
-          if (offset > 1000) break;
+      // Vérification de l'authentification
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.error('❌ No access token found for discovery request');
+        throw new Error('User not authenticated');
+      }
+
+      // Step 1: Get profiles from regular discover endpoint first (simpler approach)
+      console.log('📡 Calling /discover endpoint...');
+      const response: AxiosResponse<Profile[]> = await profileApi.get('/discover?limit=100');
+      let allProfiles = response.data || [];
+      console.log(`📊 Found ${allProfiles.length} profiles from discover endpoint`);
+
+      if (allProfiles.length === 0) {
+        console.log('📭 No profiles from discover, trying /all endpoint...');
+        try {
+          const allResponse: AxiosResponse<Profile[]> = await profileApi.get('/all');
+          allProfiles = allResponse.data || [];
+          console.log(`📊 Found ${allProfiles.length} profiles from /all endpoint`);
+        } catch (allError) {
+          console.warn('⚠️ /all endpoint also failed:', allError);
         }
-        console.log(`📊 Found ${allProfiles.length} profiles via pagination`);
       }
 
-      // Step 2: Get user's interaction history
-      const interactions = await interactionsService.getUserInteractions();
-      console.log(`🔄 User interactions: ${interactions.likes.length} likes, ${interactions.dislikes.length} dislikes`);
-      
-      // Step 3: Get current user ID to exclude their own profile
-      let currentUserId = '';
-      try {
-        const currentUser = await authService.getCurrentUser();
-        currentUserId = currentUser.id;
-        console.log('👤 Current user ID:', currentUserId);
-      } catch (error) {
-        console.warn('Could not get current user ID:', error);
-      }
-
-      // Step 4: Filter out already interacted profiles and user's own profile
-      const interactedUserIds = new Set([
-        ...interactions.likes,
-        ...interactions.dislikes,
-        currentUserId
+      // Step 2: Get user's interaction history in parallel for efficiency
+      const [interactions, currentUser] = await Promise.allSettled([
+        interactionsService.getUserInteractions(),
+        authService.getCurrentUser()
       ]);
 
-      const filteredProfiles = allProfiles.filter(profile => 
-        !interactedUserIds.has(profile.user_id || profile.id)
-      );
+      // Process interactions result
+      const userInteractions = interactions.status === 'fulfilled' ? interactions.value : { likes: [], dislikes: [] };
+      const likes = userInteractions?.likes || [];
+      const dislikes = userInteractions?.dislikes || [];
 
-      console.log(`✅ Filtered profiles: ${allProfiles.length} → ${filteredProfiles.length} (excluded ${allProfiles.length - filteredProfiles.length} already seen/own profile)`);
+      // Process current user result
+      const currentUserId = currentUser.status === 'fulfilled' ? currentUser.value?.id || '' : '';
       
-      return filteredProfiles.map(profile => transformBackendDataToFrontend(profile));
+      console.log(`🔄 User interactions: ${likes.length} likes, ${dislikes.length} dislikes, currentUser: ${currentUserId}`);
+
+      // Step 3: Create set of excluded user IDs for efficient filtering
+      const excludedUserIds = new Set([
+        ...likes,
+        ...dislikes,
+        currentUserId
+      ].filter(id => id)); // Remove empty IDs
+
+      // Step 4: Filter and transform profiles
+      const filteredProfiles = allProfiles
+        .filter(profile => {
+          const profileId = profile.user_id || profile.id;
+          return profileId && !excludedUserIds.has(profileId);
+        })
+        .map(profile => {
+          try {
+            return transformBackendDataToFrontend(profile);
+          } catch (transformError) {
+            console.warn('❌ Failed to transform profile:', profile, transformError);
+            return null;
+          }
+        })
+        .filter(profile => profile !== null);
+
+      console.log(`✅ Filtered profiles: ${allProfiles.length} → ${filteredProfiles.length} (excluded ${allProfiles.length - filteredProfiles.length} already seen/own profiles)`);
+      return filteredProfiles;
       
     } catch (error: any) {
       console.error('❌ Error fetching filtered profiles:', error);
-      // Fallback to original method
-      const response: AxiosResponse<Profile[]> = await profileApi.get(`/discover?offset=0`);
-      return response.data;
+      
+      // Smart fallback: still try to filter even on error
+      try {
+        console.log('🔄 Attempting filtered fallback...');
+        const fallbackResponse: AxiosResponse<Profile[]> = await profileApi.get('/discover?limit=50');
+        const fallbackProfiles = fallbackResponse.data || [];
+        
+        if (fallbackProfiles.length > 0) {
+          // Try to get interactions for filtering even in fallback
+          let userInteractions;
+          try {
+            userInteractions = await interactionsService.getUserInteractions();
+          } catch (interactionError) {
+            console.warn('Could not get interactions for fallback filtering:', interactionError);
+            userInteractions = { likes: [], dislikes: [] };
+          }
+
+          const likes = userInteractions?.likes || [];
+          const dislikes = userInteractions?.dislikes || [];
+          const excludedIds = new Set([...likes, ...dislikes]);
+
+          const filteredFallback = fallbackProfiles
+            .filter(profile => {
+              const profileId = profile.user_id || profile.id;
+              return profileId && !excludedIds.has(profileId);
+            })
+            .map(profile => {
+              try {
+                return transformBackendDataToFrontend(profile);
+              } catch (transformError) {
+                return null;
+              }
+            })
+            .filter(profile => profile !== null);
+
+          console.log(`✅ Filtered fallback: ${fallbackProfiles.length} → ${filteredFallback.length} profiles`);
+          return filteredFallback;
+        }
+        
+        return [];
+      } catch (fallbackError) {
+        console.error('❌ Fallback discovery also failed:', fallbackError);
+        return [];
+      }
+    }
+  },
+
+  // New optimized method: Get smart filtered profiles for discovery
+  getSmartDiscoverProfiles: async (): Promise<Profile[]> => {
+    try {
+      console.log('🧠 Getting smart filtered discovery profiles...');
+      
+      // Get fresh profiles from backend
+      const response: AxiosResponse<Profile[]> = await profileApi.get('/discover?limit=100');
+      const profiles = response.data || [];
+      
+      if (profiles.length === 0) {
+        console.log('📭 No profiles available from discovery endpoint');
+        return [];
+      }
+
+      // Get user interactions to filter out already seen profiles
+      let userInteractions;
+      try {
+        userInteractions = await interactionsService.getUserInteractions();
+      } catch (error) {
+        console.warn('Could not fetch interactions, proceeding without filtering:', error);
+        userInteractions = { likes: [], dislikes: [] };
+      }
+
+      // Get cached excluded IDs (profiles already shown but not necessarily liked/disliked)
+      const cachedExcludedIds = DiscoveryCache.getExcludedProfileIds();
+      
+      // Create comprehensive exclusion set
+      const likes = userInteractions?.likes || [];
+      const dislikes = userInteractions?.dislikes || [];
+      const allExcludedIds = new Set([
+        ...likes,
+        ...dislikes, 
+        ...cachedExcludedIds
+      ]);
+
+      console.log(`🔍 Exclusion filters: ${likes.length} likes + ${dislikes.length} dislikes + ${cachedExcludedIds.size} cached = ${allExcludedIds.size} total excluded`);
+
+      // Filter and transform profiles
+      const filteredProfiles = profiles
+        .filter(profile => {
+          const profileId = profile.user_id || profile.id;
+          return profileId && !allExcludedIds.has(profileId);
+        })
+        .map(profile => {
+          try {
+            return transformBackendDataToFrontend(profile);
+          } catch (transformError) {
+            console.warn('Transform error for profile:', profile, transformError);
+            return null;
+          }
+        })
+        .filter(profile => profile !== null) as Profile[];
+
+      // Cache the profile IDs we're about to show (so they won't be shown again)
+      const shownProfileIds = filteredProfiles.map(p => p.id || p.user_id).filter(id => id) as string[];
+      if (shownProfileIds.length > 0) {
+        DiscoveryCache.addExcludedProfileIds(shownProfileIds);
+      }
+
+      console.log(`🧠 Smart filtering: ${profiles.length} → ${filteredProfiles.length} profiles (filtered out ${profiles.length - filteredProfiles.length})`);
+      return filteredProfiles;
+
+    } catch (error: any) {
+      console.error('❌ Smart discovery failed:', error);
+      throw error; // Let the caller handle the fallback
     }
   },
 
@@ -793,11 +1008,16 @@ export const profileService = {
       return response.data.interests || [];
     } catch (error) {
       console.error('Error fetching interests suggestions:', error);
-      // Fallback to static data if backend fails
-      return [
-        'Voyage', 'Sport', 'Cinéma', 'Musique', 'Lecture', 'Cuisine', 'Art',
-        'Technologie', 'Nature', 'Photographie', 'Danse', 'Fitness', 'Gaming'
-      ];
+      
+      // Smart fallback: Use centralized localized data
+      try {
+        const { configService } = await import('./configService');
+        const config = await configService.getConfig();
+        return config.defaultInterests || getLocalizedInterests();
+      } catch (configError) {
+        console.warn('Config service unavailable, using localized fallback:', configError);
+        return getLocalizedInterests();
+      }
     }
   },
 
@@ -807,12 +1027,16 @@ export const profileService = {
       return response.data.professions || [];
     } catch (error) {
       console.error('Error fetching professions suggestions:', error);
-      // Fallback to static data if backend fails
-      return [
-        'Étudiant(e)', 'Ingénieur(e)', 'Médecin', 'Professeur(e)', 'Commercial(e)',
-        'Artiste', 'Entrepreneur(e)', 'Avocat(e)', 'Infirmier(e)', 'Architecte',
-        'Designer', 'Développeur(euse)', 'Marketing', 'Consultant(e)', 'Autre'
-      ];
+      
+      // Smart fallback: Use centralized localized data
+      try {
+        const { configService } = await import('./configService');
+        const config = await configService.getConfig();
+        return config.defaultProfessions || getLocalizedProfessions();
+      } catch (configError) {
+        console.warn('Config service unavailable, using localized fallback:', configError);
+        return getLocalizedProfessions();
+      }
     }
   },
 
@@ -822,10 +1046,16 @@ export const profileService = {
       return response.data.education_levels || [];
     } catch (error) {
       console.error('Error fetching education levels:', error);
-      // Fallback to static data if backend fails
-      return [
-        'Collège', 'Lycée', 'Bac+2', 'Bac+3', 'Bac+5', 'Master', 'Doctorat', 'Autre'
-      ];
+      
+      // Smart fallback: Use centralized localized data
+      try {
+        const { configService } = await import('./configService');
+        const config = await configService.getConfig();
+        return config.defaultEducationLevels || getLocalizedEducationLevels();
+      } catch (configError) {
+        console.warn('Config service unavailable, using localized fallback:', configError);
+        return getLocalizedEducationLevels();
+      }
     }
   },
 
@@ -835,13 +1065,16 @@ export const profileService = {
       return response.data.options || [];
     } catch (error) {
       console.error('Error fetching looking for options:', error);
-      // Fallback to static data if backend fails
-      return [
-        { value: 'serious', label: 'Relation sérieuse' },
-        { value: 'casual', label: 'Relation décontractée' },
-        { value: 'friends', label: 'Amitié' },
-        { value: 'unsure', label: 'Je ne sais pas encore' }
-      ];
+      
+      // Smart fallback: Use centralized localized data
+      try {
+        const { configService } = await import('./configService');
+        const config = await configService.getConfig();
+        return config.defaultLookingForOptions || getLocalizedLookingForOptions();
+      } catch (configError) {
+        console.warn('Config service unavailable, using localized fallback:', configError);
+        return getLocalizedLookingForOptions();
+      }
     }
   },
 
@@ -851,12 +1084,16 @@ export const profileService = {
       return response.data.options || [];
     } catch (error) {
       console.error('Error fetching gender options:', error);
-      // Fallback to static data if backend fails
-      return [
-        { value: 'male', label: 'Homme' },
-        { value: 'female', label: 'Femme' },
-        { value: 'other', label: 'Autre / Ne se prononce pas' }
-      ];
+      
+      // Smart fallback: Use centralized localized data
+      try {
+        const { configService } = await import('./configService');
+        const config = await configService.getConfig();
+        return config.defaultGenderOptions || getLocalizedGenderOptions();
+      } catch (configError) {
+        console.warn('Config service unavailable, using localized fallback:', configError);
+        return getLocalizedGenderOptions();
+      }
     }
   },
 

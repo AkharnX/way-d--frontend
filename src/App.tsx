@@ -14,9 +14,9 @@ import AnalyticsWrapper from './components/AnalyticsWrapper';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import EmailVerification from './pages/EmailVerification';
 import Dashboard from './pages/Dashboard';
-import Discovery from './pages/Discovery';
 import ModernDiscovery from './pages/ModernDiscovery';
 import Messages from './pages/Messages';
 import Profile from './pages/Profile';
@@ -42,6 +42,7 @@ function App() {
                   <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/verify-email" element={<EmailVerification />} />
                   <Route path="/post-login-redirect" element={
                     <ProtectedRoute>
@@ -49,15 +50,10 @@ function App() {
                     </ProtectedRoute>
                   } />
                   
-                  {/* Profile management routes */}
+                  {/* Profile management routes - Special case for create-profile (no navigation needed) */}
                   <Route path="/create-profile" element={
                     <ProtectedRoute>
                       <CreateProfile />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/edit-profile" element={
-                    <ProtectedRoute>
-                      <EditProfile />
                     </ProtectedRoute>
                   } />
                   
@@ -74,52 +70,18 @@ function App() {
                     <Route path="events" element={<Events />} />
                     <Route path="messages" element={<Messages />} />
                     <Route path="profile" element={<Profile />} />
+                    <Route path="edit-profile" element={<EditProfile />} />
                     <Route path="settings" element={<Settings />} />
                   </Route>
 
-                  {/* Direct access routes (also protected and require profile) */}
-                  <Route path="/discovery" element={
-                    <ProtectedRoute>
-                      <ProfileRequiredRoute>
-                        <ModernDiscovery />
-                      </ProfileRequiredRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/discovery-old" element={
-                    <ProtectedRoute>
-                      <ProfileRequiredRoute>
-                        <Discovery />
-                      </ProfileRequiredRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/events" element={
-                    <ProtectedRoute>
-                      <ProfileRequiredRoute>
-                        <Events />
-                      </ProfileRequiredRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/messages" element={
-                    <ProtectedRoute>
-                      <ProfileRequiredRoute>
-                        <Messages />
-                      </ProfileRequiredRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/profile" element={
-                    <ProtectedRoute>
-                      <ProfileRequiredRoute>
-                        <Profile />
-                      </ProfileRequiredRoute>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/settings" element={
-                    <ProtectedRoute>
-                      <ProfileRequiredRoute>
-                        <Settings />
-                      </ProfileRequiredRoute>
-                    </ProtectedRoute>
-                  } />
+                  {/* Legacy route redirects to maintain compatibility */}
+                  <Route path="/discovery" element={<Navigate to="/app/discovery" replace />} />
+                  <Route path="/discovery-old" element={<Navigate to="/app/discovery" replace />} />
+                  <Route path="/events" element={<Navigate to="/app/events" replace />} />
+                  <Route path="/messages" element={<Navigate to="/app/messages" replace />} />
+                  <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
+                  <Route path="/edit-profile" element={<Navigate to="/app/edit-profile" replace />} />
+                  <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
                   
                   {/* Redirect old dashboard route */}
                   <Route path="/dashboard" element={<Navigate to="/app" replace />} />

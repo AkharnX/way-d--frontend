@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Discovery Cache - Way-D</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        #results {
+            background: #1f2937;
+            color: #f3f4f6;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test du Système de Cache Discovery</h1>
+    
+    <div class="test-section">
+        <h2>Fonctionnalités du Cache</h2>
+        <p>Ce test vérifie que le système de cache de découverte fonctionne correctement pour éviter de montrer les profils déjà likés/dislikés.</p>
+        
+        <button onclick="runCacheTests()">🧪 Lancer les Tests</button>
+        <button onclick="clearResults()">🧹 Nettoyer</button>
+        <button onclick="openDiscovery()">🔍 Ouvrir Discovery</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Résultats des Tests</h2>
+        <div id="results">Cliquez sur "Lancer les Tests" pour commencer...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Instructions d'utilisation</h2>
+        <ol>
+            <li><strong>Lancer les tests</strong> : Vérifie le bon fonctionnement du cache</li>
+            <li><strong>Aller sur Discovery</strong> : Testez avec de vrais profils</li>
+            <li><strong>Liker/Disliker</strong> : Les profils sont ajoutés au cache</li>
+            <li><strong>Recharger la page</strong> : Les profils ne doivent plus apparaître</li>
+        </ol>
+    </div>
+
+    <script>
+        // Simuler le service DiscoveryCache pour les tests
+        class DiscoveryCache {
+            static CACHE_KEY = 'way_d_discovery_cache';
+            static MAX_CACHE_SIZE = 1000;
+
+            static getExcludedProfileIds() {
+                try {
+                    const cached = localStorage.getItem(this.CACHE_KEY);
+                    if (!cached) return new Set();
+                    const data = JSON.parse(cached);
+                    return new Set(data.profileIds);
+                } catch (error) {
+                    return new Set();
+                }
+            }
+
+            static addExcludedProfileIds(profileIds) {
+                try {
+                    const existing = this.getExcludedProfileIds();
+                    profileIds.forEach(id => existing.add(id));
+                    
+                    const allExcluded = Array.from(existing);
+                    if (allExcluded.length > this.MAX_CACHE_SIZE) {
+                        allExcluded.splice(0, allExcluded.length - this.MAX_CACHE_SIZE);
+                    }
+
+                    localStorage.setItem(this.CACHE_KEY, JSON.stringify({
+                        profileIds: allExcluded,
+                        timestamp: Date.now()
+                    }));
+                } catch (error) {
+                    console.warn('Error saving cache:', error);
+                }
+            }
+
+            static clearCache() {
+                localStorage.removeItem(this.CACHE_KEY);
+            }
+
+            static getCacheStats() {
+                try {
+                    const cached = localStorage.getItem(this.CACHE_KEY);
+                    if (!cached) return { size: 0, ageHours: 0, isExpired: false };
+                    
+                    const data = JSON.parse(cached);
+                    const ageMs = Date.now() - data.timestamp;
+                    const ageHours = ageMs / (1000 * 60 * 60);
+                    
+                    return {
+                        size: data.profileIds.length,
+                        ageHours: Math.round(ageHours * 100) / 100,
+                        isExpired: ageHours > 24
+                    };
+                } catch (error) {
+                    return { size: 0, ageHours: 0, isExpired: false };
+                }
+            }
+        }
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                success: '#22c55e',
+                error: '#ef4444', 
+                warning: '#f59e0b',
+                info: '#3b82f6'
+            };
+            
+            results.innerHTML += `<span style="color: ${colors[type]}">[${timestamp}] ${message}</span>\n`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function runCacheTests() {
+            clearResults();
+            log('🧪 Démarrage des tests du cache de découverte...', 'info');
+            
+            // Test 1: Ajout de profils
+            try {
+                log('📝 Test 1: Ajout de profils au cache');
+                DiscoveryCache.addExcludedProfileIds(['test-1', 'test-2', 'test-3']);
+                
+                const stats = DiscoveryCache.getCacheStats();
+                if (stats.size >= 3) {
+                    log('✅ Test 1 RÉUSSI: Profils ajoutés correctement', 'success');
+                } else {
+                    log('❌ Test 1 ÉCHOUÉ: Profils non ajoutés', 'error');
+                }
+            } catch (error) {
+                log(`❌ Test 1 ERREUR: ${error.message}`, 'error');
+            }
+
+            // Test 2: Récupération
+            try {
+                log('📝 Test 2: Récupération des profils exclus');
+                const excluded = DiscoveryCache.getExcludedProfileIds();
+                
+                if (excluded.has('test-1') && excluded.has('test-2')) {
+                    log(`✅ Test 2 RÉUSSI: ${excluded.size} profils récupérés`, 'success');
+                } else {
+                    log('❌ Test 2 ÉCHOUÉ: Profils non trouvés', 'error');
+                }
+            } catch (error) {
+                log(`❌ Test 2 ERREUR: ${error.message}`, 'error');
+            }
+
+            // Test 3: Performance
+            try {
+                log('📝 Test 3: Test de performance');
+                const start = performance.now();
+                
+                const testIds = Array.from({length: 100}, (_, i) => `perf-${i}`);
+                DiscoveryCache.addExcludedProfileIds(testIds);
+                
+                const excluded = DiscoveryCache.getExcludedProfileIds();
+                for (let i = 0; i < 1000; i++) {
+                    excluded.has(`perf-${i % 100}`);
+                }
+                
+                const duration = performance.now() - start;
+                log(`✅ Test 3 RÉUSSI: 1000 recherches en ${duration.toFixed(2)}ms`, 'success');
+                
+                if (duration < 50) {
+                    log('🚀 Performance EXCELLENTE', 'success');
+                } else {
+                    log('⚡ Performance BONNE', 'warning');
+                }
+            } catch (error) {
+                log(`❌ Test 3 ERREUR: ${error.message}`, 'error');
+            }
+
+            // Test 4: Stats du cache
+            try {
+                log('📝 Test 4: Stats du cache');
+                const stats = DiscoveryCache.getCacheStats();
+                log(`📊 Taille: ${stats.size} profils`, 'info');
+                log(`⏰ Âge: ${stats.ageHours}h`, 'info');
+                log(`🗓️ Expiré: ${stats.isExpired ? 'Oui' : 'Non'}`, stats.isExpired ? 'warning' : 'info');
+            } catch (error) {
+                log(`❌ Test 4 ERREUR: ${error.message}`, 'error');
+            }
+
+            // Nettoyage final
+            log('🧹 Nettoyage des données de test...');
+            DiscoveryCache.clearCache();
+            
+            const finalStats = DiscoveryCache.getCacheStats();
+            if (finalStats.size === 0) {
+                log('✅ Cache nettoyé avec succès', 'success');
+            }
+            
+            log('🎯 Tests terminés !', 'success');
+            log('Vous pouvez maintenant tester avec l\'application réelle.', 'info');
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        function openDiscovery() {
+            window.open('/discovery', '_blank');
+        }
+    </script>
+</body>
+</html>

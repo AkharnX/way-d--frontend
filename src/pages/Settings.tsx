@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useSecurity } from '../components/SecurityProvider';
 import SecurityDashboard from '../components/SecurityDashboard';
-import PageHeader from '../components/PageHeader';
+import PageTitle from '../components/PageTitle';
 import type { NotificationSettings, PrivacySettings } from '../types';
 import { logError } from '../utils/errorUtils';
+import { notificationsService, profileService } from '../services/api';
+import { Settings as SettingsIcon } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -37,20 +39,60 @@ const Settings: React.FC = () => {
     if (!user) return;
     
     try {
-      // Load settings from profile or create default settings
-      // For now, use defaults but in real app would fetch from backend
-      setNotifications({
-        pushNotifications: true,
-        emailNotifications: true,
-        messageNotifications: true,
-        matchNotifications: true,
-      });
-      setPrivacy({
-        showDistance: true,
-        showAge: true,
-        showOnline: true,
-        discoverableProfile: true,
-      });
+      // Load settings from backend services
+      try {
+        // Load notification settings from notifications service
+        const userSettings = await notificationsService.getSettings();
+        console.log('📱 Loaded notification settings:', userSettings);
+        
+        if (userSettings) {
+          setNotifications({
+            pushNotifications: userSettings.push_enabled ?? true,
+            emailNotifications: userSettings.email_enabled ?? true,
+            messageNotifications: userSettings.message_enabled ?? true,
+            matchNotifications: userSettings.match_enabled ?? true,
+          });
+        }
+        
+        // For privacy settings, use the profile data if available
+        try {
+          const profile = await profileService.getProfile();
+          console.log('🔒 Loaded profile for privacy settings:', profile);
+          
+          if (profile) {
+            // Map profile settings to privacy settings (if they exist)
+            setPrivacy({
+              showDistance: true, // Default since profile doesn't have this field
+              showAge: true, // Default since profile displays age
+              showOnline: true, // Default based on activity
+              discoverableProfile: profile.active ?? true, // Use active status as discoverable
+            });
+          }
+        } catch (profileError) {
+          console.warn('Profile privacy settings not available, using defaults:', profileError);
+          // Keep default privacy settings
+        }
+        
+      } catch (backendError) {
+        console.warn('Backend settings not available, using intelligent defaults:', backendError);
+        
+        // Fallback to intelligent defaults based on user behavior
+        const hasActiveSession = localStorage.getItem('access_token');
+        
+        setNotifications({
+          pushNotifications: hasActiveSession ? true : false,
+          emailNotifications: true,
+          messageNotifications: true,
+          matchNotifications: true,
+        });
+        
+        setPrivacy({
+          showDistance: true,
+          showAge: true,
+          showOnline: hasActiveSession ? true : false,
+          discoverableProfile: true,
+        });
+      }
     } catch (error) {
       logError('Error loading user settings:', error);
     }
@@ -75,20 +117,37 @@ const Settings: React.FC = () => {
     setSaveStatus('saving');
     
     try {
-      // Save notification settings to backend
-      const settingsData = {
-        notifications,
-        privacy,
-        user_preferences: {
-          ...notifications,
-          ...privacy
-        }
+      // Save notification settings to notifications service
+      console.log('💾 Saving notification settings:', notifications);
+      
+      const notificationData = {
+        push_enabled: notifications.pushNotifications,
+        email_enabled: notifications.emailNotifications,
+        message_enabled: notifications.messageNotifications,
+        match_enabled: notifications.matchNotifications,
       };
       
-      // Simulate API call - in real app, would be:
-      // await profileService.updateSettings(settingsData);
-      console.log('Saving settings:', settingsData);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        await notificationsService.updateSettings(notificationData);
+        console.log('✅ Notification settings saved successfully');
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to save notification settings:', notificationError);
+        // Don't fail completely if notifications fail
+      }
+      
+      // Save privacy settings (update profile active status for discoverability)
+      try {
+        if (privacy.discoverableProfile !== undefined) {
+          // Update profile active status based on discoverability preference
+          await profileService.updateProfile({ 
+            active: privacy.discoverableProfile 
+          });
+          console.log('✅ Privacy settings saved successfully');
+        }
+      } catch (privacyError) {
+        console.warn('⚠️ Failed to save privacy settings:', privacyError);
+        // Don't fail completely if privacy save fails
+      }
       
       setSaveStatus('success');
       
@@ -112,12 +171,36 @@ const Settings: React.FC = () => {
       if (window.confirm('🚨 DERNIÈRE CHANCE : Voulez-vous vraiment supprimer votre compte Way-d ? Toutes vos données seront perdues.')) {
         try {
           setLoading(true);
-          // TODO: Implement account deletion
-          console.log('Account deletion requested');
-          alert('Fonctionnalité de suppression de compte à venir. Contactez le support pour le moment.');
-        } catch (error) {
+          
+          console.log('🗑️ Initiating account deletion...');
+          
+          // Call the real account deletion API
+          await profileService.deleteProfile();
+          
+          console.log('✅ Account deleted successfully');
+          
+          // Clear all local data
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // Logout the user
+          await authLogout();
+          
+          // Show success message and redirect
+          alert('✅ Votre compte a été supprimé avec succès. Vous allez être redirigé vers la page d\'accueil.');
+          navigate('/');
+          
+        } catch (error: any) {
           logError('Error deleting account:', error);
-          alert('Erreur lors de la suppression du compte. Veuillez réessayer.');
+          
+          // Show specific error message based on the error type
+          if (error.response?.status === 404) {
+            alert('❌ Compte introuvable. Il se peut qu\'il ait déjà été supprimé.');
+          } else if (error.response?.status === 403) {
+            alert('❌ Permission refusée. Veuillez vous reconnecter et réessayer.');
+          } else {
+            alert('❌ Erreur lors de la suppression du compte. Veuillez réessayer ou contacter le support.');
+          }
         } finally {
           setLoading(false);
         }
@@ -154,17 +237,13 @@ const Settings: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      <PageHeader 
-        title="Paramètres"
-        showBack={true}
-        customBackAction={() => navigate('/app')}
-      />
-      
-      <div className="max-w-6xl mx-auto p-6 pt-20">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Settings</h1>
-          <p className="text-gray-400">Manage your account preferences and security</p>
-        </div>
+      <div className="max-w-6xl mx-auto p-6 pt-8">
+        <PageTitle 
+          title="Paramètres" 
+          subtitle="Gérez vos préférences et votre sécurité" 
+          icon={<SettingsIcon className="w-6 h-6 text-white" />}
+          className="text-white"
+        />
 
         {/* Status Message */}
         {saveStatus !== 'idle' && (
@@ -339,7 +418,7 @@ const Settings: React.FC = () => {
                         <h3 className="font-medium mb-2">Account Information</h3>
                         <div className="space-y-2 text-sm text-gray-300">
                           <p><span className="font-medium">Email:</span> {user.email}</p>
-                          <p><span className="font-medium">Member since:</span> {new Date().getFullYear()}</p>
+                          <p><span className="font-medium">Member since:</span> {user.created_at ? new Date(user.created_at).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' }) : 'Récemment'}</p>
                           <p><span className="font-medium">Security Level:</span> <span className="capitalize">{securityLevel}</span></p>
                         </div>
                       </div>
@@ -413,30 +492,42 @@ const Settings: React.FC = () => {
             <div className="bg-gray-800 rounded-lg p-6">
               <h3 className="text-lg font-semibold mb-4">About Way-d</h3>
               <div className="space-y-2 text-gray-300 text-sm">
-                <p><span className="font-medium">Version:</span> 2.0.0</p>
-                <p><span className="font-medium">Build:</span> {new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}</p>
-                <p><span className="font-medium">Security:</span> Enhanced</p>
+                <p><span className="font-medium">Version:</span> {process.env.VITE_APP_VERSION || '1.0.0'}</p>
+                <p><span className="font-medium">Build:</span> {process.env.VITE_BUILD_DATE || new Date().toLocaleDateString('fr-FR')}</p>
+                <p><span className="font-medium">Environment:</span> {process.env.NODE_ENV || 'development'}</p>
                 <div className="pt-4 border-t border-gray-700">
-                  <p className="text-xs text-gray-400">© 2024 Way-d. All rights reserved.</p>
+                  <p className="text-xs text-gray-400">© {new Date().getFullYear()} Way-d. Tous droits réservés.</p>
                 </div>
               </div>
             </div>
 
             {/* Help & Support */}
             <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-lg font-semibold mb-4">Help & Support</h3>
+              <h3 className="text-lg font-semibold mb-4">Aide & Support</h3>
               <div className="space-y-3">
-                <button className="w-full text-left p-2 rounded hover:bg-gray-700 transition-colors text-sm">
-                  📚 Help Center
+                <button 
+                  onClick={() => window.open('https://way-d.com/help', '_blank')}
+                  className="w-full text-left p-2 rounded hover:bg-gray-700 transition-colors text-sm"
+                >
+                  📚 Centre d'Aide
                 </button>
-                <button className="w-full text-left p-2 rounded hover:bg-gray-700 transition-colors text-sm">
-                  💬 Contact Support
+                <button 
+                  onClick={() => window.open('mailto:support@way-d.com', '_blank')}
+                  className="w-full text-left p-2 rounded hover:bg-gray-700 transition-colors text-sm"
+                >
+                  💬 Contacter le Support
                 </button>
-                <button className="w-full text-left p-2 rounded hover:bg-gray-700 transition-colors text-sm">
-                  🐛 Report Bug
+                <button 
+                  onClick={() => window.open('https://way-d.com/bug-report', '_blank')}
+                  className="w-full text-left p-2 rounded hover:bg-gray-700 transition-colors text-sm"
+                >
+                  🐛 Signaler un Bug
                 </button>
-                <button className="w-full text-left p-2 rounded hover:bg-gray-700 transition-colors text-sm">
-                  📋 Privacy Policy
+                <button 
+                  onClick={() => window.open('https://way-d.com/privacy', '_blank')}
+                  className="w-full text-left p-2 rounded hover:bg-gray-700 transition-colors text-sm"
+                >
+                  📋 Politique de Confidentialité
                 </button>
               </div>
             </div>

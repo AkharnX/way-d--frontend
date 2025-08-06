@@ -4,6 +4,7 @@ import { profileService, interactionsService } from '../services/api';
 import { logError, getErrorMessage } from '../utils/errorUtils';
 import { Heart, X } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import DiscoveryCache from '../services/discoveryCache';
 
 const Discovery: React.FC = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -42,31 +43,74 @@ const Discovery: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('🔄 Loading filtered discovery profiles...');
+      console.log('🔄 Loading optimized discovery profiles...');
       
-      // Use the backend-optimized discover endpoint that excludes already interacted profiles
-      const data = await profileService.getFilteredDiscoverProfiles();
-      console.log(`📊 Loaded ${data.length} filtered profiles for discovery`);
-      
-      if (data.length === 0) {
-        // Try to refresh the profiles from the regular endpoint as fallback
-        try {
-          const fallbackData = await profileService.getDiscoverProfiles();
-          if (fallbackData.length > 0) {
-            setProfiles(fallbackData);
+      // Try the new smart method first
+      try {
+        const smartData = await profileService.getSmartDiscoverProfiles();
+        if (smartData && Array.isArray(smartData) && smartData.length > 0) {
+          console.log(`✅ Smart discovery loaded ${smartData.length} filtered profiles`);
+          setProfiles(smartData);
+          setCurrentProfileIndex(0);
+          return;
+        }
+        console.log('📭 Smart discovery returned no profiles, trying filtered method...');
+      } catch (smartError) {
+        console.warn('Smart discovery failed, falling back to filtered method:', smartError);
+      }
+
+      // Fallback to filtered method
+      try {
+        const filteredData = await profileService.getFilteredDiscoverProfiles();
+        if (filteredData && Array.isArray(filteredData) && filteredData.length > 0) {
+          console.log(`✅ Filtered discovery loaded ${filteredData.length} profiles`);
+          setProfiles(filteredData);
+          setCurrentProfileIndex(0);
+          return;
+        }
+        console.log('📭 Filtered discovery returned no profiles, trying regular method...');
+      } catch (filteredError) {
+        console.warn('Filtered discovery failed, falling back to regular method:', filteredError);
+      }
+
+      // Final fallback to regular discovery (but we'll manually filter these)
+      try {
+        const regularData = await profileService.getDiscoverProfiles();
+        if (regularData && Array.isArray(regularData) && regularData.length > 0) {
+          console.log(`⚠️ Using regular discovery with ${regularData.length} profiles (may include already seen)`);
+          
+          // Try to filter manually on frontend
+          try {
+            const interactions = await interactionsService.getUserInteractions();
+            const likes = interactions?.likes || [];
+            const dislikes = interactions?.dislikes || [];
+            const excludedIds = new Set([...likes, ...dislikes]);
+            
+            const manuallyFiltered = regularData.filter(profile => {
+              const profileId = profile.id || profile.user_id;
+              return profileId && !excludedIds.has(profileId);
+            });
+            
+            console.log(`🔧 Manual filtering: ${regularData.length} → ${manuallyFiltered.length} profiles`);
+            setProfiles(manuallyFiltered.length > 0 ? manuallyFiltered : regularData);
             setCurrentProfileIndex(0);
-          } else {
-            setError('Aucun nouveau profil à découvrir pour le moment. Revenez plus tard !');
+          } catch (filterError) {
+            console.warn('Manual filtering failed, using unfiltered profiles:', filterError);
+            setProfiles(regularData);
+            setCurrentProfileIndex(0);
           }
-        } catch (fallbackError) {
+        } else {
+          setProfiles([]);
           setError('Aucun nouveau profil à découvrir pour le moment. Revenez plus tard !');
         }
-      } else {
-        setProfiles(data);
-        setCurrentProfileIndex(0);
+      } catch (regularError) {
+        console.error('All discovery methods failed:', regularError);
+        setProfiles([]);
+        setError('Erreur lors du chargement des profils. Vérifiez votre connexion.');
       }
     } catch (error: any) {
       logError('Error loading profiles:', error);
+      setProfiles([]);
       setError(getErrorMessage(error));
     } finally {
       setLoading(false);
@@ -88,6 +132,12 @@ const Discovery: React.FC = () => {
 
     try {
       console.log(`💚 Liking profile: ${currentProfile.first_name}`);
+      
+      // Add to cache immediately to prevent re-showing
+      const profileId = currentProfile.id || currentProfile.user_id;
+      if (profileId) {
+        DiscoveryCache.addExcludedProfileIds([profileId]);
+      }
       
       // Send like to backend
       const result = await interactionsService.likeProfile(currentProfile.id || currentProfile.user_id);
@@ -116,6 +166,12 @@ const Discovery: React.FC = () => {
       if (error.response?.status === 409 && error.response?.data?.error === 'Already liked') {
         console.log(`⚠️ Profile ${currentProfile.first_name} was already liked - removing from discovery`);
         
+        // Ensure it's in cache
+        const profileId = currentProfile.id || currentProfile.user_id;
+        if (profileId) {
+          DiscoveryCache.addExcludedProfileIds([profileId]);
+        }
+        
         // Remove this profile from the list and move to next
         removeCurrentProfileAndNext();
         
@@ -142,6 +198,12 @@ const Discovery: React.FC = () => {
     try {
       console.log(`❌ Disliking profile: ${currentProfile.first_name}`);
       
+      // Add to cache immediately to prevent re-showing
+      const profileId = currentProfile.id || currentProfile.user_id;
+      if (profileId) {
+        DiscoveryCache.addExcludedProfileIds([profileId]);
+      }
+      
       // Send dislike to backend
       await interactionsService.dislikeProfile(currentProfile.id || currentProfile.user_id);
       
@@ -160,6 +222,12 @@ const Discovery: React.FC = () => {
       // Handle 409 "Already disliked" error gracefully
       if (error.response?.status === 409 && error.response?.data?.error === 'Already disliked') {
         console.log(`⚠️ Profile ${currentProfile.first_name} was already disliked - removing from discovery`);
+        
+        // Ensure it's in cache
+        const profileId = currentProfile.id || currentProfile.user_id;
+        if (profileId) {
+          DiscoveryCache.addExcludedProfileIds([profileId]);
+        }
         
         // Remove this profile from the list and move to next
         removeCurrentProfileAndNext();

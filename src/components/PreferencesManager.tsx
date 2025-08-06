@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ProfilePreference } from '../types';
 import { Settings, Users, MapPin, Calendar } from 'lucide-react';
+import { configService } from '../services/configService';
 
 interface PreferencesManagerProps {
   preferences: Partial<ProfilePreference>;
@@ -20,35 +21,52 @@ export default function PreferencesManager({
     max_distance: preferences.max_distance || 50
   });
 
+  // Dynamic data from config service
+  const [preferenceRanges, setPreferenceRanges] = useState({
+    ageRanges: [
+      { value: 18, label: '18 ans' },
+      { value: 21, label: '21 ans' },
+      { value: 25, label: '25 ans' },
+      { value: 30, label: '30 ans' },
+      { value: 35, label: '35 ans' },
+      { value: 40, label: '40 ans' },
+      { value: 45, label: '45 ans' },
+      { value: 50, label: '50 ans' },
+      { value: 60, label: '60 ans' },
+      { value: 70, label: '70+ ans' }
+    ],
+    distanceRanges: [
+      { value: 1, label: '1 km' },
+      { value: 5, label: '5 km' },
+      { value: 10, label: '10 km' },
+      { value: 25, label: '25 km' },
+      { value: 50, label: '50 km' },
+      { value: 100, label: '100 km' },
+      { value: 200, label: '200 km' },
+      { value: 500, label: '500+ km' }
+    ]
+  });
+
+  // Load dynamic preference ranges on component mount
+  useEffect(() => {
+    loadPreferenceRanges();
+  }, []);
+
+  const loadPreferenceRanges = async () => {
+    try {
+      const ranges = await configService.getPreferenceRanges();
+      setPreferenceRanges(ranges);
+    } catch (error) {
+      console.error('Error loading preference ranges:', error);
+      // Keep default ranges if loading fails
+    }
+  };
+
   const handleChange = (field: string, value: number) => {
     const newPrefs = { ...localPrefs, [field]: value };
     setLocalPrefs(newPrefs);
     onPreferencesChange(newPrefs);
   };
-
-  const ageRanges = [
-    { value: 18, label: '18 ans' },
-    { value: 21, label: '21 ans' },
-    { value: 25, label: '25 ans' },
-    { value: 30, label: '30 ans' },
-    { value: 35, label: '35 ans' },
-    { value: 40, label: '40 ans' },
-    { value: 45, label: '45 ans' },
-    { value: 50, label: '50 ans' },
-    { value: 60, label: '60 ans' },
-    { value: 70, label: '70+ ans' }
-  ];
-
-  const distanceRanges = [
-    { value: 1, label: '1 km' },
-    { value: 5, label: '5 km' },
-    { value: 10, label: '10 km' },
-    { value: 25, label: '25 km' },
-    { value: 50, label: '50 km' },
-    { value: 100, label: '100 km' },
-    { value: 200, label: '200 km' },
-    { value: 500, label: '500+ km' }
-  ];
 
   return (
     <div className={className}>
@@ -75,7 +93,7 @@ export default function PreferencesManager({
                 onChange={(e) => handleChange('min_age', parseInt(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               >
-                {ageRanges.map(range => (
+                {preferenceRanges.ageRanges.map(range => (
                   <option key={range.value} value={range.value}>
                     {range.label}
                   </option>
@@ -92,7 +110,7 @@ export default function PreferencesManager({
                 onChange={(e) => handleChange('max_age', parseInt(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               >
-                {ageRanges.filter(range => range.value >= localPrefs.min_age).map(range => (
+                {preferenceRanges.ageRanges.filter(range => range.value >= localPrefs.min_age).map(range => (
                   <option key={range.value} value={range.value}>
                     {range.label}
                   </option>
@@ -125,7 +143,7 @@ export default function PreferencesManager({
                 onChange={(e) => handleChange('min_distance', parseInt(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
               >
-                {distanceRanges.map(range => (
+                {preferenceRanges.distanceRanges.map(range => (
                   <option key={range.value} value={range.value}>
                     {range.label}
                   </option>
@@ -142,7 +160,7 @@ export default function PreferencesManager({
                 onChange={(e) => handleChange('max_distance', parseInt(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
               >
-                {distanceRanges.filter(range => range.value >= localPrefs.min_distance).map(range => (
+                {preferenceRanges.distanceRanges.filter(range => range.value >= localPrefs.min_distance).map(range => (
                   <option key={range.value} value={range.value}>
                     {range.label}
                   </option>

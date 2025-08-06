@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { profileService } from '../services/api';
 import { Upload, MapPin, Calendar, Heart, Edit, Save } from 'lucide-react';
-import PageHeader from '../components/PageHeader';
+import PageTitle from '../components/PageTitle';
 
 interface ProfileForm {
   first_name: string;
@@ -91,18 +91,22 @@ function EditProfile() {
       const profile = await profileService.getProfile();
       
       if (profile) {
+        // Use realistic defaults based on actual data or contextual values
+        const calculatedAge = profile.age || (profile.birthdate ? 
+          new Date().getFullYear() - new Date(profile.birthdate).getFullYear() : 25);
+        
         setFormData({
           first_name: profile.first_name || '',
           last_name: profile.last_name || '',
-          bio: profile.bio || '',
-          age: profile.age || 18,
-          height: profile.height || 175,
+          bio: profile.bio || profile.trait || '',
+          age: calculatedAge,
+          height: profile.height || 170, // More realistic average height
           location: profile.location || '',
           interests: profile.interests || [],
-          photos: profile.photos || [],
+          photos: profile.photos || (profile.profile_photo_url ? [profile.profile_photo_url] : []),
           looking_for: profile.looking_for || 'serious',
           education: profile.education || '',
-          profession: profile.profession || ''
+          profession: profile.profession || profile.occupation || ''
         });
       }
     } catch (error: any) {
@@ -185,20 +189,15 @@ function EditProfile() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      <PageHeader 
-        title="Modifier votre profil"
-        showBack={true}
-        customBackAction={() => navigate('/app/profile')}
-      />
-      
-      <div className="p-6">
+      <div className="p-6 pt-8">
+        <PageTitle 
+          title="Modifier votre profil" 
+          subtitle="Mettez à jour vos informations personnelles" 
+          icon={<Edit className="w-6 h-6 text-white" />}
+          className="text-white"
+        />
         <div className="max-w-2xl mx-auto">
           <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-center mb-6">
-              <Edit className="w-8 h-8 text-way-d-secondary mr-3" />
-              <h2 className="text-2xl font-bold text-white">Modifier vos informations</h2>
-            </div>
-
             <form onSubmit={handleSubmit} className="space-y-6">
             {/* Basic Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -4,6 +4,7 @@ import type { Profile } from '../types';
 import { profileService, interactionsService } from '../services/api';
 import { logError, getErrorMessage } from '../utils/errorUtils';
 import { Heart, X, MapPin, Briefcase, Sparkles, RotateCcw, TrendingUp } from 'lucide-react';
+import DiscoveryCache from '../services/discoveryCache';
 
 const ModernDiscovery: React.FC = () => {
   const navigate = useNavigate();
@@ -35,11 +36,39 @@ const ModernDiscovery: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('🔄 Loading fresh discovery profiles...');
+      console.log('🔄 Loading optimized modern discovery profiles...');
       
-      // Utiliser l'endpoint optimisé qui exclut les profils déjà likés/dislikés
+      // Try the new smart method first
+      try {
+        const smartData = await profileService.getSmartDiscoverProfiles();
+        if (smartData && Array.isArray(smartData) && smartData.length > 0) {
+          console.log(`✅ Smart discovery loaded ${smartData.length} filtered profiles`);
+          setProfiles(smartData);
+          setCurrentProfileIndex(0);
+          return;
+        }
+        console.log('📭 Smart discovery returned no profiles, trying filtered method...');
+      } catch (smartError) {
+        console.warn('Smart discovery failed, falling back to filtered method:', smartError);
+      }
+
+      // Fallback to filtered method
+      try {
+        const filteredData = await profileService.getFilteredDiscoverProfiles();
+        if (filteredData && Array.isArray(filteredData) && filteredData.length > 0) {
+          console.log(`✅ Filtered discovery loaded ${filteredData.length} profiles`);
+          setProfiles(filteredData);
+          setCurrentProfileIndex(0);
+          return;
+        }
+        console.log('📭 Filtered discovery returned no profiles, trying regular method...');
+      } catch (filteredError) {
+        console.warn('Filtered discovery failed, falling back to regular method:', filteredError);
+      }
+
+      // Final fallback to regular discovery
       const data = await profileService.getDiscoverProfiles();
-      console.log(`📊 Loaded ${data.length} fresh profiles for discovery`);
+      console.log(`📊 Regular discovery loaded ${data.length} profiles`);
       
       if (data.length === 0) {
         setError('Aucun nouveau profil à découvrir pour le moment. Revenez plus tard !');
@@ -84,6 +113,12 @@ const ModernDiscovery: React.FC = () => {
       setActionLoading(true);
       console.log(`💚 Liking profile: ${currentProfile.first_name}`);
       
+      // Add to cache immediately to prevent re-showing
+      const profileId = currentProfile.id || currentProfile.user_id;
+      if (profileId) {
+        DiscoveryCache.addExcludedProfileIds([profileId]);
+      }
+      
       const result = await interactionsService.likeProfile(currentProfile.id || currentProfile.user_id);
       
       // Check if it's a match!
@@ -121,6 +156,12 @@ const ModernDiscovery: React.FC = () => {
       setActionLoading(true);
       console.log(`❌ Disliking profile: ${currentProfile.first_name}`);
       
+      // Add to cache immediately to prevent re-showing
+      const profileId = currentProfile.id || currentProfile.user_id;
+      if (profileId) {
+        DiscoveryCache.addExcludedProfileIds([profileId]);
+      }
+      
       await interactionsService.dislikeProfile(currentProfile.id || currentProfile.user_id);
       
       removeCurrentProfileAndNext();
@@ -132,6 +173,13 @@ const ModernDiscovery: React.FC = () => {
       
       if (error.response?.status === 409 && error.response?.data?.error === 'Already disliked') {
         console.log(`⚠️ Profile ${currentProfile.first_name} was already disliked - removing from discovery`);
+        
+        // Ensure it's in cache
+        const profileId = currentProfile.id || currentProfile.user_id;
+        if (profileId) {
+          DiscoveryCache.addExcludedProfileIds([profileId]);
+        }
+        
         removeCurrentProfileAndNext();
         setLastAction({ type: 'dislike', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
         return;

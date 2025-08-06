@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { profileService, authService } from '../services/api';
 import { User, Upload, MapPin, Calendar, Heart, AlertCircle } from 'lucide-react';
+import { getLocalizedDefaults, calculateRealisticAge, suggestInterestsByContext, suggestRealisticHeight } from '../utils/profileDefaults';
 import PageHeader from '../components/PageHeader';
 
 interface ProfileForm {
@@ -37,8 +38,8 @@ function CreateProfile() {
     first_name: '',
     last_name: '',
     bio: '',
-    age: 18,
-    height: 175,
+    age: 25, // More realistic default
+    height: 170, // Average height for both genders
     location: '',
     interests: [],
     photos: [],
@@ -75,18 +76,38 @@ function CreateProfile() {
         setIsRequired(true);
       }
 
-      // Récupérer les données utilisateur actuelles
-      const currentUser = await authService.getCurrentUser();
+      // Récupérer les données utilisateur actuelles et les valeurs par défaut localisées
+      const [currentUser, localizedDefaults] = await Promise.all([
+        authService.getCurrentUser(),
+        getLocalizedDefaults()
+      ]);
+
       if (currentUser) {
-        // Calculer l'âge depuis la date de naissance
-        const birthDate = new Date(currentUser.birth_date);
-        const age = new Date().getFullYear() - birthDate.getFullYear();
-        
+        // Calculer l'âge réaliste depuis la date de naissance
+        const age = currentUser.birth_date ? 
+          calculateRealisticAge(currentUser.birth_date) : 
+          localizedDefaults.defaultAge;
+
+        // Suggérer une taille réaliste basée sur le genre
+        const height = suggestRealisticHeight(currentUser.gender as 'male' | 'female' | 'other');
+
+        // Suggérer des intérêts contextuels
+        const suggestedInterests = await suggestInterestsByContext(age);
+
         setFormData(prev => ({
           ...prev,
           first_name: currentUser.first_name || '',
           last_name: currentUser.last_name || '',
-          age: age || 18
+          age: age,
+          height: height,
+          interests: suggestedInterests.slice(0, 3) // Pré-sélectionner 3 intérêts populaires
+        }));
+      } else {
+        // Utiliser les valeurs par défaut localisées si pas d'utilisateur
+        setFormData(prev => ({
+          ...prev,
+          age: localizedDefaults.defaultAge,
+          height: localizedDefaults.defaultHeight
         }));
       }
     } catch (error) {
@@ -120,7 +141,7 @@ function CreateProfile() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'age' ? parseInt(value) || 18 : value
+      [name]: name === 'age' ? parseInt(value) || 25 : value // Realistic default age
     }));
   };
 

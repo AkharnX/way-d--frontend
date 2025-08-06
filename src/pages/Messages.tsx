@@ -177,12 +177,21 @@ const Messages: React.FC = () => {
               <div className="p-8 text-center text-gray-500">
                 <Heart className="w-16 h-16 text-way-d-secondary/30 mx-auto mb-6" />
                 <h3 className="font-semibold text-gray-900 mb-3 text-lg">Aucune conversation</h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 mb-6">
                   {matches.length === 0 
-                    ? "Commencez à swiper pour obtenir des matches !" 
+                    ? "Commencez à découvrir des profils pour obtenir des matches !" 
                     : "Aucun résultat pour votre recherche"
                   }
                 </p>
+                {matches.length === 0 && (
+                  <button
+                    onClick={() => window.location.href = '/discovery'}
+                    className="btn-primary inline-flex items-center gap-2"
+                  >
+                    <Heart className="w-5 h-5" />
+                    Découvrir des profils
+                  </button>
+                )}
               </div>
             ) : (
               filteredMatches.map((match) => (
