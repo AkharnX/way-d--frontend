@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+  },
+  preview: {
+    port: 5173,
+    host: true,
     proxy: {
       '/api/auth': {
         target: 'http://localhost:8080',

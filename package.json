@@ -16,7 +16,8 @@
     "start:backend": "./scripts/setup/start-backend-services.sh",
     "stop:backend": "./scripts/setup/stop-backend-services.sh",
     "clean": "./scripts/maintenance/clean-and-organize.sh",
-    "maintain": "./scripts/maintenance/way-d-maintenance.sh"
+    "maintain": "./scripts/maintenance/way-d-maintenance.sh",
+    "deploy:pm2": "./deploy-pm2.sh"
   },
   "dependencies": {
     "axios": "^1.10.0",
