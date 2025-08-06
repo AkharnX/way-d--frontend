@@ -5,6 +5,16 @@ import { getErrorMessage, logError } from '../utils/errorUtils';
 import { createRequestLoggerInterceptor } from '../utils/requestLogger';
 import DiscoveryCache from './discoveryCache';
 
+// Import the HealthResponse interface from global definitions
+type HealthResponse = {
+  status: string;
+  service: string;
+  timestamp: string;
+  database?: string;
+  version?: string;
+  error?: string;
+};
+
 // Localized data fallbacks (imported from utils/localizedData.ts functionality)
 const getLocalizedInterests = (): string[] => {
   return [
@@ -241,7 +251,7 @@ export const healthService = {
     try {
       // Use dedicated health endpoint with correct path
       // Fix: Utilisation du chemin correct pour le health check
-      const response = await axios.get(`${AUTH_API_URL}/health`, { timeout: 3000 });
+      const response = await axios.get(`${API_BASE_URL}/health`, { timeout: 3000 });
       return {
         status: response.data.status === 'ok' ? 'healthy' : 'unhealthy',
         service: response.data.service || 'auth',
@@ -260,7 +270,7 @@ export const healthService = {
     }
   },
   
-  checkProfile: async (): Promise<{ status: string; service: string; timestamp: string; database?: string; version?: string }> => {
+  checkProfile: async (): Promise<HealthResponse> => {
     try {
       // Use dedicated health endpoint with correct path
       // Fix: Utilisation du chemin correct pour le health check
@@ -283,7 +293,7 @@ export const healthService = {
     }
   },
   
-  checkInteractions: async (): Promise<{ status: string; service: string; timestamp: string; database?: string; version?: string }> => {
+  checkInteractions: async (): Promise<HealthResponse> => {
     try {
       // Use dedicated health endpoint with correct path
       // Fix: Utilisation du chemin correct pour le health check
@@ -308,9 +318,9 @@ export const healthService = {
   
   // Check all services at once
   checkAll: async (): Promise<{ 
-    auth: { status: string; service: string; timestamp: string; database?: string; version?: string; error?: string }; 
-    profile: { status: string; service: string; timestamp: string; database?: string; version?: string; error?: string }; 
-    interactions: { status: string; service: string; timestamp: string; database?: string; version?: string; error?: string }; 
+    auth: HealthResponse; 
+    profile: HealthResponse; 
+    interactions: HealthResponse; 
   }> => {
     const [authResult, profileResult, interactionsResult] = await Promise.allSettled([
       healthService.checkAuth(),
