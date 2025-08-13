@@ -10,6 +10,7 @@ lerna-debug.log*
 dist
 dist-ssr
 *.local
+.cache
 
 # Environment variables
 .env
@@ -17,6 +18,51 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Logs
+logs
+*.log
+.pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# PM2 specific files
+.pm2
+
+# IDE and editor files
+.vscode/settings.json.bak
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# Backup files
+*.bak
+*.backup
+nginx.conf.bak
 
 # Logs
 logs/*.log
