@@ -7,6 +7,7 @@ export interface User {
   gender: 'male' | 'female' | 'other';
   created_at: string;
   updated_at: string;
+  two_factor_enabled?: boolean;
 }
 
 export interface Profile {
@@ -90,11 +91,27 @@ export interface AuthResponse {
   access_token: string;
   refresh_token: string;
   user: User;
+  requires_2fa?: boolean;
+}
+
+export interface TwoFactorSetupResponse {
+  secret: string;
+  qr_code_url: string;
+  backup_codes: string[];
+}
+
+export interface SocialAuthResponse {
+  access_token: string;
+  refresh_token: string;
+  user: User;
+  is_new_user: boolean;
 }
 
 export interface LoginData {
   email: string;
   password: string;
+  rememberMe?: boolean;
+  twoFactorCode?: string;
 }
 
 export interface RegisterData {

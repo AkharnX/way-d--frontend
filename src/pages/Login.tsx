@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { formatErrorForUser } from '../utils/apiErrorUtils';
+import { authService } from '../services/api';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, WifiOff } from 'lucide-react';
+import TwoFactorVerify from '../components/TwoFactorVerify';
+import SocialLoginButtons from '../components/SocialLoginButtons';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -11,11 +14,14 @@ const Login: React.FC = () => {
   
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    rememberMe: false
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showTwoFactor, setShowTwoFactor] = useState(false);
+  const [pendingLogin, setPendingLogin] = useState<{ email: string; password: string; rememberMe: boolean } | null>(null);
 
   // Show message from email verification if available
   React.useEffect(() => {
@@ -26,10 +32,10 @@ const Login: React.FC = () => {
   }, [location.state]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
     // Clear error when user types
     if (error) setError('');
@@ -41,6 +47,17 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
+      const response = await authService.login(formData);
+      
+      // Check if 2FA is required
+      if (response.requires_2fa) {
+        setPendingLogin(formData);
+        setShowTwoFactor(true);
+        setLoading(false);
+        return;
+      }
+      
+      // Regular login success - use the auth hook to set tokens
       await login(formData);
       navigate('/post-login-redirect', { replace: true });
     } catch (err: any) {
@@ -51,6 +68,77 @@ const Login: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const handle2FAVerify = async (code: string) => {
+    if (!pendingLogin) return;
+    
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await authService.verify2FA({
+        email: pendingLogin.email,
+        code
+      });
+      
+      // Set tokens and authenticate user
+      localStorage.setItem('access_token', response.access_token);
+      localStorage.setItem('refresh_token', response.refresh_token);
+      
+      navigate('/post-login-redirect', { replace: true });
+    } catch (err: any) {
+      const userFriendlyError = formatErrorForUser(err);
+      setError(userFriendlyError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'facebook', token: string) => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = provider === 'google' 
+        ? await authService.googleAuth({ token })
+        : await authService.facebookAuth({ token });
+      
+      // Set tokens
+      localStorage.setItem('access_token', response.access_token);
+      localStorage.setItem('refresh_token', response.refresh_token);
+      
+      // If new user, redirect to profile creation
+      if (response.is_new_user) {
+        navigate('/create-profile', { replace: true });
+      } else {
+        navigate('/post-login-redirect', { replace: true });
+      }
+    } catch (err: any) {
+      const userFriendlyError = formatErrorForUser(err);
+      setError(userFriendlyError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack2FA = () => {
+    setShowTwoFactor(false);
+    setPendingLogin(null);
+    setError('');
+  };
+
+  // Show 2FA verification if required
+  if (showTwoFactor && pendingLogin) {
+    return (
+      <TwoFactorVerify
+        email={pendingLogin.email}
+        onVerify={handle2FAVerify}
+        onBack={handleBack2FA}
+        loading={loading}
+        error={error}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen gradient-bg flex items-center justify-center p-4">
@@ -168,6 +256,30 @@ const Login: React.FC = () => {
               </div>
             </div>
 
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  id="rememberMe"
+                  name="rememberMe"
+                  type="checkbox"
+                  checked={formData.rememberMe}
+                  onChange={handleChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  disabled={loading}
+                />
+                <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+                  Se souvenir de moi
+                </label>
+              </div>
+              <Link 
+                to="/forgot-password" 
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </div>
+
             {/* Submit Button */}
             <button
               type="submit"
@@ -183,6 +295,13 @@ const Login: React.FC = () => {
                 'Se connecter'
               )}
             </button>
+
+            {/* Social Login */}
+            <SocialLoginButtons
+              onGoogleLogin={(token) => handleSocialLogin('google', token)}
+              onFacebookLogin={(token) => handleSocialLogin('facebook', token)}
+              loading={loading}
+            />
           </form>
 
           {/* Links */}

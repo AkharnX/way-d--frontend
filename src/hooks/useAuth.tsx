@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (data: LoginData) => {
     try {
       const response = await authService.login(data);
-      setTokens(response.access_token, response.refresh_token);
+      setTokens(response.access_token, response.refresh_token, data.rememberMe || false);
       
       // Store user email for potential email verification issues
       localStorage.setItem('user_email', data.email);
