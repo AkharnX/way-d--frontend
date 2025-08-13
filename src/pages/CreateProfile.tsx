@@ -1,23 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { profileService, authService } from '../services/api';
-import { User, Upload, MapPin, Calendar, Heart, AlertCircle } from 'lucide-react';
-import { getLocalizedDefaults, calculateRealisticAge, suggestInterestsByContext, suggestRealisticHeight } from '../utils/profileDefaults';
+import { AlertCircle, Calendar, Heart, MapPin, Upload, User } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
-
-interface ProfileForm {
-  first_name: string;
-  last_name: string;
-  bio: string;
-  age: number;
-  height: number;
-  location: string;
-  interests: string[];
-  photos: string[];
-  looking_for: string;
-  education: string;
-  profession: string;
-}
+import { authService, profileService } from '../services/api';
+import { calculateRealisticAge, getLocalizedDefaults, suggestInterestsByContext, suggestRealisticHeight } from '../utils/profileDefaults';
+import { formatForBackend, isProfileComplete, mergeProfileDataSources, validateAndFixProfileData, type NormalizedProfileData } from '../utils/profileTypeNormalizer';
 
 interface DynamicData {
   interestSuggestions: string[];
@@ -34,7 +21,7 @@ function CreateProfile() {
   const [isRequired, setIsRequired] = useState(false);
 
   // Pré-remplir les données depuis l'état de navigation ou l'utilisateur connecté
-  const [formData, setFormData] = useState<ProfileForm>({
+  const [formData, setFormData] = useState<NormalizedProfileData>({
     first_name: '',
     last_name: '',
     bio: '',
@@ -76,16 +63,44 @@ function CreateProfile() {
         setIsRequired(true);
       }
 
-      // Récupérer les données utilisateur actuelles et les valeurs par défaut localisées
+      // Récupérer les données utilisateur actuelles et données de localStorage
       const [currentUser, localizedDefaults] = await Promise.all([
         authService.getCurrentUser(),
         getLocalizedDefaults()
       ]);
 
+      // Vérifier s'il y a déjà un profil existant pour éviter les doublons
+      let existingProfile = null;
+      try {
+        existingProfile = await profileService.getProfile();
+        if (existingProfile && isProfileComplete(existingProfile)) {
+          // Profil complet existe déjà - rediriger vers l'app
+          console.log('✅ Profil complet trouvé, redirection vers l\'app...');
+          navigate('/app', { replace: true });
+          return;
+        }
+      } catch (error: any) {
+        // 404 = pas de profil, continue normalement
+        if (error.response?.status !== 404) {
+          console.warn('Erreur lors de la vérification du profil existant:', error);
+        }
+      }
+
+      // Récupérer les données de localStorage (depuis l'inscription)
+      const pendingProfileData = localStorage.getItem('pending_profile_data');
+
+      // Fusionner toutes les sources de données
+      const mergedData = mergeProfileDataSources(
+        formData,
+        pendingProfileData,
+        existingProfile || undefined
+      );
+
+      // Si on a un utilisateur connecté, utiliser ses données de base
       if (currentUser) {
         // Calculer l'âge réaliste depuis la date de naissance
-        const age = currentUser.birth_date ? 
-          calculateRealisticAge(currentUser.birth_date) : 
+        const age = currentUser.birth_date ?
+          calculateRealisticAge(currentUser.birth_date) :
           localizedDefaults.defaultAge;
 
         // Suggérer une taille réaliste basée sur le genre
@@ -94,21 +109,26 @@ function CreateProfile() {
         // Suggérer des intérêts contextuels
         const suggestedInterests = await suggestInterestsByContext(age);
 
-        setFormData(prev => ({
-          ...prev,
-          first_name: currentUser.first_name || '',
-          last_name: currentUser.last_name || '',
+        // Mettre à jour les données avec les informations utilisateur
+        const finalData = validateAndFixProfileData({
+          ...mergedData,
+          first_name: currentUser.first_name || mergedData.first_name,
+          last_name: currentUser.last_name || mergedData.last_name,
           age: age,
-          height: height,
-          interests: suggestedInterests.slice(0, 3) // Pré-sélectionner 3 intérêts populaires
-        }));
+          height: mergedData.height || height,
+          interests: mergedData.interests.length > 0 ? mergedData.interests : suggestedInterests.slice(0, 3)
+        });
+
+        setFormData(finalData);
       } else {
-        // Utiliser les valeurs par défaut localisées si pas d'utilisateur
-        setFormData(prev => ({
-          ...prev,
-          age: localizedDefaults.defaultAge,
-          height: localizedDefaults.defaultHeight
-        }));
+        // Pas d'utilisateur connecté, utiliser les valeurs par défaut
+        const defaultData = validateAndFixProfileData({
+          ...mergedData,
+          age: mergedData.age || localizedDefaults.defaultAge,
+          height: mergedData.height || localizedDefaults.defaultHeight
+        });
+
+        setFormData(defaultData);
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -198,11 +218,39 @@ function CreateProfile() {
     }
 
     try {
-      await profileService.createProfile(formData);
-      // Profile créé avec succès - redirection obligatoire vers l'app
+      // Valider et formater les données pour le backend
+      const validatedData = validateAndFixProfileData(formData);
+      const backendData = formatForBackend(validatedData);
+
+      console.log('📤 Envoi des données de profil:', backendData);
+
+      // Vérifier si le profil existe déjà pour éviter les doublons
+      let profileExists = false;
+      try {
+        const existingProfile = await profileService.getProfile();
+        profileExists = existingProfile && isProfileComplete(existingProfile);
+      } catch (error: any) {
+        // 404 = pas de profil existant, continuer la création
+        profileExists = false;
+      }
+
+      if (profileExists) {
+        console.log('⚠️ Profil existe déjà, mise à jour au lieu de création...');
+        await profileService.updateProfile(backendData as any);
+      } else {
+        console.log('🆕 Création d\'un nouveau profil...');
+        await profileService.createProfile(backendData as any);
+      }
+
+      // Nettoyer les données temporaires après succès
+      localStorage.removeItem('pending_profile_data');
+
+      console.log('✅ Profil créé/mis à jour avec succès!');
+
+      // Redirection obligatoire vers l'app
       navigate('/app', { replace: true });
     } catch (error: any) {
-      console.error('Error creating profile:', error);
+      console.error('Error creating/updating profile:', error);
       setError('Erreur lors de la création du profil: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
@@ -211,12 +259,12 @@ function CreateProfile() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50">
-      <PageHeader 
+      <PageHeader
         title="Créer votre profil"
         showBack={!isRequired}
         customBackAction={isRequired ? undefined : () => navigate('/app')}
       />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto">
           <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -255,68 +303,68 @@ function CreateProfile() {
                   </div>
                   <h2 className="text-2xl font-bold way-d-primary">Informations personnelles</h2>
                 </div>
-            {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-3 text-lg">Prénom</label>
-                <input
-                  type="text"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleInputChange}
-                  required
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-gray-700 mb-3 text-lg">Nom</label>
-                <input
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleInputChange}
-                  required
-                  className="input-field"
-                />
-              </div>
-            </div>
+                {/* Basic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-3 text-lg">Prénom</label>
+                    <input
+                      type="text"
+                      name="first_name"
+                      value={formData.first_name}
+                      onChange={handleInputChange}
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-3 text-lg">Nom</label>
+                    <input
+                      type="text"
+                      name="last_name"
+                      value={formData.last_name}
+                      onChange={handleInputChange}
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-3 text-lg">
-                  <Calendar className="w-5 h-5 inline mr-2 way-d-secondary" />
-                  Âge
-                </label>
-                <input
-                  type="number"
-                  name="age"
-                  value={formData.age}
-                  onChange={handleInputChange}
-                  min="18"
-                  max="100"
-                  required
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-gray-700 mb-3 text-lg">
-                  <Heart className="w-5 h-5 inline mr-2 way-d-secondary" />
-                  Recherche
-                </label>
-                <select
-                  name="looking_for"
-                  value={formData.looking_for}
-                  onChange={handleInputChange}
-                  className="input-field"
-                >
-                  {dynamicData.lookingForOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-3 text-lg">
+                      <Calendar className="w-5 h-5 inline mr-2 way-d-secondary" />
+                      Âge
+                    </label>
+                    <input
+                      type="number"
+                      name="age"
+                      value={formData.age}
+                      onChange={handleInputChange}
+                      min="18"
+                      max="100"
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-3 text-lg">
+                      <Heart className="w-5 h-5 inline mr-2 way-d-secondary" />
+                      Recherche
+                    </label>
+                    <select
+                      name="looking_for"
+                      value={formData.looking_for}
+                      onChange={handleInputChange}
+                      className="input-field"
+                    >
+                      {dynamicData.lookingForOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
               {/* Localisation et détails */}
@@ -410,120 +458,120 @@ function CreateProfile() {
                 </div>
               </div>
 
-            {/* Interests */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Centres d'intérêt</label>
-              
-              <div className="flex gap-2 mb-3">
-                <input
-                  type="text"
-                  value={newInterest}
-                  onChange={(e) => setNewInterest(e.target.value)}
-                  placeholder="Ajouter un centre d'intérêt"
-                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addInterest(newInterest);
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => addInterest(newInterest)}
-                  className="px-4 py-2 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90"
-                >
-                  Ajouter
-                </button>
-              </div>
+              {/* Interests */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Centres d'intérêt</label>
 
-              <div className="flex flex-wrap gap-2 mb-3">
-                {dynamicData.interestSuggestions.map((suggestion: string) => (
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={newInterest}
+                    onChange={(e) => setNewInterest(e.target.value)}
+                    placeholder="Ajouter un centre d'intérêt"
+                    className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addInterest(newInterest);
+                      }
+                    }}
+                  />
                   <button
-                    key={suggestion}
                     type="button"
-                    onClick={() => addInterest(suggestion)}
-                    disabled={formData.interests.includes(suggestion)}
-                    className="px-3 py-1 text-sm bg-gray-700 text-gray-300 rounded-full hover:bg-gray-600 disabled:opacity-50"
+                    onClick={() => addInterest(newInterest)}
+                    className="px-4 py-2 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90"
                   >
-                    {suggestion}
+                    Ajouter
                   </button>
-                ))}
-              </div>
+                </div>
 
-              <div className="flex flex-wrap gap-2">
-                {formData.interests.map((interest) => (
-                  <span
-                    key={interest}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-way-d-secondary text-white"
-                  >
-                    {interest}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {dynamicData.interestSuggestions.map((suggestion: string) => (
                     <button
+                      key={suggestion}
                       type="button"
-                      onClick={() => removeInterest(interest)}
-                      className="ml-2 text-white hover:text-gray-200"
+                      onClick={() => addInterest(suggestion)}
+                      disabled={formData.interests.includes(suggestion)}
+                      className="px-3 py-1 text-sm bg-gray-700 text-gray-300 rounded-full hover:bg-gray-600 disabled:opacity-50"
                     >
-                      ×
+                      {suggestion}
                     </button>
-                  </span>
-                ))}
-              </div>
-            </div>
+                  ))}
+                </div>
 
-            {/* Photos */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                <Upload className="w-4 h-4 inline mr-1" />
-                Photos
-              </label>
-              
-              <div className="flex gap-2 mb-3">
-                <input
-                  type="url"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  placeholder="URL de votre photo"
-                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
-                />
+                <div className="flex flex-wrap gap-2">
+                  {formData.interests.map((interest) => (
+                    <span
+                      key={interest}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-way-d-secondary text-white"
+                    >
+                      {interest}
+                      <button
+                        type="button"
+                        onClick={() => removeInterest(interest)}
+                        className="ml-2 text-white hover:text-gray-200"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Photos */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <Upload className="w-4 h-4 inline mr-1" />
+                  Photos
+                </label>
+
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="url"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    placeholder="URL de votre photo"
+                    className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-light text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={addPhoto}
+                    className="px-4 py-2 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90"
+                  >
+                    Ajouter Photo
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {formData.photos.map((photo, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={photo}
+                        alt={`Photo ${index + 1}`}
+                        className="w-full h-24 object-cover rounded-md"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(photo)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4">
                 <button
-                  type="button"
-                  onClick={addPhoto}
-                  className="px-4 py-2 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-way-d-primary to-way-d-secondary text-white py-3 px-4 rounded-xl font-medium hover:from-way-d-primary/90 hover:to-way-d-secondary/90 disabled:opacity-50 transition-all transform hover:scale-105"
                 >
-                  Ajouter Photo
+                  {loading ? 'Création...' : 'Créer mon profil'}
                 </button>
               </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                {formData.photos.map((photo, index) => (
-                  <div key={index} className="relative">
-                    <img
-                      src={photo}
-                      alt={`Photo ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-md"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePhoto(photo)}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-way-d-primary to-way-d-secondary text-white py-3 px-4 rounded-xl font-medium hover:from-way-d-primary/90 hover:to-way-d-secondary/90 disabled:opacity-50 transition-all transform hover:scale-105"
-              >
-                {loading ? 'Création...' : 'Créer mon profil'}
-              </button>
-            </div>
-          </form>
+            </form>
           </div>
         </div>
       </div>
