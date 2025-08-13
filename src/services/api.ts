@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { AxiosResponse } from 'axios';
-import type { AuthResponse, LoginData, RegisterData, User, Profile, Match, Message } from '../types';
+import type { AuthResponse, LoginData, RegisterData, User, Profile, Match, Message, TwoFactorSetupResponse, SocialAuthResponse } from '../types';
 import { getErrorMessage, logError } from '../utils/errorUtils';
 import { createRequestLoggerInterceptor } from '../utils/requestLogger';
 import DiscoveryCache from './discoveryCache';
@@ -142,14 +142,36 @@ const tokenRefreshApi = axios.create({
 });
 
 // Token management
-export const setTokens = (access: string, refresh: string) => {
-  localStorage.setItem('access_token', access);
-  localStorage.setItem('refresh_token', refresh);
+export const setTokens = (access: string, refresh: string, rememberMe: boolean = false) => {
+  if (rememberMe) {
+    // For remember me, set longer expiration times
+    const accessExpiry = new Date();
+    accessExpiry.setHours(accessExpiry.getHours() + 24); // 24 hours for access token
+    
+    const refreshExpiry = new Date();
+    refreshExpiry.setDate(refreshExpiry.getDate() + 30); // 30 days for refresh token
+    
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+    localStorage.setItem('token_expiry', accessExpiry.toISOString());
+    localStorage.setItem('refresh_expiry', refreshExpiry.toISOString());
+    localStorage.setItem('remember_me', 'true');
+  } else {
+    // Regular session - tokens expire when browser closes
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+    localStorage.removeItem('token_expiry');
+    localStorage.removeItem('refresh_expiry');
+    localStorage.removeItem('remember_me');
+  }
 };
 
 export const clearTokens = () => {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
+  localStorage.removeItem('token_expiry');
+  localStorage.removeItem('refresh_expiry');
+  localStorage.removeItem('remember_me');
 };
 
 // Request interceptors to add auth token and logging
@@ -405,6 +427,43 @@ export const authService = {
 
   forgotPassword: async (email: string): Promise<{ message: string }> => {
     const response = await authApi.post('/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (data: { token: string; password: string }): Promise<{ message: string }> => {
+    const response = await authApi.post('/reset-password', data);
+    return response.data;
+  },
+
+  // Two-Factor Authentication methods
+  setup2FA: async (): Promise<TwoFactorSetupResponse> => {
+    const response = await authApi.post('/2fa/setup');
+    return response.data;
+  },
+
+  verify2FASetup: async (data: { secret: string; code: string }): Promise<{ message: string; backup_codes: string[] }> => {
+    const response = await authApi.post('/2fa/verify-setup', data);
+    return response.data;
+  },
+
+  disable2FA: async (data: { code: string }): Promise<{ message: string }> => {
+    const response = await authApi.post('/2fa/disable', data);
+    return response.data;
+  },
+
+  verify2FA: async (data: { email: string; code: string }): Promise<AuthResponse> => {
+    const response = await authApi.post('/2fa/verify', data);
+    return response.data;
+  },
+
+  // Social Login methods
+  googleAuth: async (data: { token: string }): Promise<SocialAuthResponse> => {
+    const response = await authApi.post('/auth/google', data);
+    return response.data;
+  },
+
+  facebookAuth: async (data: { token: string }): Promise<SocialAuthResponse> => {
+    const response = await authApi.post('/auth/facebook', data);
     return response.data;
   },
 
