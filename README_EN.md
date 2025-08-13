@@ -1,6 +1,32 @@
 # Way-d Frontend 💜
 
-A modern dating application built with React and TypeScript, designed to create meaningful connections in Côte d'Ivoire and French-speaking Africa.
+A modern dating application built with React and npm run stop:backend         # Stop backend services
+```
+
+## 🤖 MCP Integration (Model Context Protocol)
+
+Way-d includes a dedicated MCP server for enhanced AI assistance:
+
+```bash
+# Setup MCP server
+npm run mcp:setup           # Configure MCP for Claude Desktop
+npm run mcp:build           # Build MCP server
+npm run mcp:dev             # Start MCP in development
+npm run mcp:test            # Test all MCP tools
+```
+
+### Available MCP Tools
+- **analyze_project_structure**: Complete project architecture analysis
+- **get_api_endpoints**: Extract all API endpoints
+- **check_git_status**: Git status and recent commits
+- **analyze_typescript_errors**: TypeScript error analysis
+- **get_component_usage**: React component usage search
+- **check_api_health**: Backend services health check
+- **generate_deployment_report**: Comprehensive deployment report
+
+See [MCP Integration Guide](docs/mcp-integration.md) for details.
+
+## 🚀 DeploymentypeScript, designed to create meaningful connections in Côte d'Ivoire and French-speaking Africa.
 
 ![Way-d Logo](public/logo_blue.svg)
 

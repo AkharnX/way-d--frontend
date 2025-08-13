@@ -1,0 +1,30 @@
+# Logs du serveur MCP
+*.log
+
+# Dossier de build
+dist/
+build/
+
+# Node modules
+node_modules/
+
+# Fichiers temporaires
+.tmp/
+temp/
+
+# Fichiers de cache
+.cache/
+.vscode/
+.idea/
+
+# Fichiers d'environnement
+.env
+.env.local
+.env.production
+
+# Fichiers OS
+.DS_Store
+Thumbs.db
+
+# Fichiers TypeScript
+*.tsbuildinfo
