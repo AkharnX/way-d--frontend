@@ -12,10 +12,14 @@ import {
     Resource
 } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
+import { exec } from 'child_process';
 import fs from 'fs-extra';
 import { glob } from 'glob';
 import path from 'path';
 import simpleGit from 'simple-git';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 class WayDMCPServer {
     private server: Server;
@@ -140,6 +144,34 @@ class WayDMCPServer {
                             },
                         },
                     },
+                    {
+                        name: 'start_backend_services',
+                        description: 'Start all Way-d backend services with Docker',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {
+                                rebuild: {
+                                    type: 'boolean',
+                                    description: 'Force rebuild of Docker images',
+                                    default: false,
+                                },
+                            },
+                        },
+                    },
+                    {
+                        name: 'stop_backend_services',
+                        description: 'Stop all Way-d backend services',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {
+                                removeVolumes: {
+                                    type: 'boolean',
+                                    description: 'Remove Docker volumes as well',
+                                    default: false,
+                                },
+                            },
+                        },
+                    },
                 ],
             };
         });
@@ -169,6 +201,12 @@ class WayDMCPServer {
 
                     case 'generate_deployment_report':
                         return await this.generateDeploymentReport((args as any)?.includeTests ?? true);
+
+                    case 'start_backend_services':
+                        return await this.startBackendServices((args as any)?.rebuild ?? false);
+
+                    case 'stop_backend_services':
+                        return await this.stopBackendServices((args as any)?.removeVolumes ?? false);
 
                     default:
                         throw new Error(`Unknown tool: ${name}`);
@@ -570,6 +608,66 @@ class WayDMCPServer {
             };
         } catch (error) {
             throw new Error(`Failed to generate deployment report: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    private async startBackendServices(rebuild: boolean): Promise<CallToolResult> {
+        try {
+            const wayDRoot = path.join(this.projectRoot, '..');
+
+            let command = 'cd ../.. && ./start-all-services.sh';
+            if (rebuild) {
+                command = 'cd ../.. && docker-compose down && docker-compose build --no-cache && ./start-all-services.sh';
+            }
+
+            const { stdout, stderr } = await execAsync(command);
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Backend services startup initiated:\n\nSTDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`,
+                    },
+                ],
+            };
+        } catch (error) {
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Failed to start backend services: ${error instanceof Error ? error.message : String(error)}`,
+                    },
+                ],
+            };
+        }
+    }
+
+    private async stopBackendServices(removeVolumes: boolean): Promise<CallToolResult> {
+        try {
+            let command = 'cd ../.. && docker-compose down';
+            if (removeVolumes) {
+                command = 'cd ../.. && docker-compose down -v';
+            }
+
+            const { stdout, stderr } = await execAsync(command);
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Backend services stopped:\n\nSTDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`,
+                    },
+                ],
+            };
+        } catch (error) {
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Failed to stop backend services: ${error instanceof Error ? error.message : String(error)}`,
+                    },
+                ],
+            };
         }
     }
 
