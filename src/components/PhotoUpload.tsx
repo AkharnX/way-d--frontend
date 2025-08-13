@@ -1,23 +1,34 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, X, AlertCircle } from 'lucide-react';
+import { Upload, X, AlertCircle, Check, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { 
+  validateImageFile, 
+  processImageMultipleSizes, 
+  generatePresignedUrl,
+  uploadWithPresignedUrl,
+  type ProcessedImage
+} from '../utils/imageUtils';
 
 interface PhotoUploadProps {
   photos: string[];
   onPhotosChange: (photos: string[]) => void;
   maxPhotos?: number;
   className?: string;
+  enableAdvancedProcessing?: boolean;
 }
 
 export default function PhotoUpload({ 
   photos, 
   onPhotosChange, 
   maxPhotos = 6,
-  className = '' 
+  className = '',
+  enableAdvancedProcessing = true
 }: PhotoUploadProps) {
   const [photoUrl, setPhotoUrl] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [processedImages, setProcessedImages] = useState<ProcessedImage[]>([]);
 
   const addPhoto = useCallback((url: string) => {
     if (!url) return;
@@ -53,33 +64,84 @@ export default function PhotoUpload({
     if (!files || files.length === 0) return;
     
     const file = files[0];
+    const fileId = `${Date.now()}-${file.name}`;
     
-    // Validation du fichier
-    if (!file.type.startsWith('image/')) {
-      setError('Seules les images sont autorisées');
+    // Validate file
+    const validation = validateImageFile(file);
+    if (!validation.isValid) {
+      setError(validation.errors.join(', '));
       return;
     }
-    
-    if (file.size > 5 * 1024 * 1024) { // 5MB
-      setError('La taille du fichier ne doit pas dépasser 5MB');
+
+    // Show warnings if any
+    if (validation.warnings.length > 0) {
+      console.warn('Image warnings:', validation.warnings);
+    }
+
+    if (photos.length >= maxPhotos) {
+      setError(`Maximum ${maxPhotos} photos autorisées`);
       return;
     }
 
     setLoading(true);
     setError('');
+    setUploadProgress({ ...uploadProgress, [fileId]: 0 });
 
     try {
-      // Ici, vous pouvez implémenter l'upload vers Cloudinary, S3, etc.
-      // Pour l'instant, on convertit en URL locale pour démonstration
-      const objectUrl = URL.createObjectURL(file);
-      addPhoto(objectUrl);
+      if (enableAdvancedProcessing) {
+        // Advanced processing with multiple sizes
+        setUploadProgress({ ...uploadProgress, [fileId]: 20 });
+        
+        // Process image into multiple sizes
+        const processed = await processImageMultipleSizes(file);
+        setProcessedImages(prev => [...prev, ...processed]);
+        
+        setUploadProgress({ ...uploadProgress, [fileId]: 60 });
+        
+        // Generate presigned URL for the original size
+        const originalImage = processed.find(p => p.size.suffix === '') || processed[0];
+        const { uploadUrl, viewUrl } = await generatePresignedUrl(originalImage.file.name);
+        
+        setUploadProgress({ ...uploadProgress, [fileId]: 80 });
+        
+        // Upload using presigned URL
+        const uploadResult = await uploadWithPresignedUrl(originalImage.file, uploadUrl);
+        
+        if (uploadResult.success) {
+          // Use the view URL for display
+          onPhotosChange([...photos, viewUrl]);
+          setUploadProgress({ ...uploadProgress, [fileId]: 100 });
+          
+          // Clean up progress after successful upload
+          setTimeout(() => {
+            setUploadProgress(prev => {
+              const newProgress = { ...prev };
+              delete newProgress[fileId];
+              return newProgress;
+            });
+          }, 2000);
+        } else {
+          throw new Error(uploadResult.error || 'Upload failed');
+        }
+      } else {
+        // Simple processing (for backward compatibility)
+        const objectUrl = URL.createObjectURL(file);
+        onPhotosChange([...photos, objectUrl]);
+      }
     } catch (error) {
       setError('Erreur lors de l\'upload de la photo');
       console.error('Photo upload error:', error);
+      
+      // Clean up failed upload progress
+      setUploadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[fileId];
+        return newProgress;
+      });
     } finally {
       setLoading(false);
     }
-  }, [addPhoto]);
+  }, [photos, onPhotosChange, maxPhotos, enableAdvancedProcessing, uploadProgress]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -111,6 +173,11 @@ export default function PhotoUpload({
       <label className="block text-sm font-medium text-gray-700 mb-2">
         <Upload className="w-4 h-4 inline mr-1" />
         Photos ({photos.length}/{maxPhotos})
+        {enableAdvancedProcessing && (
+          <span className="ml-2 text-xs text-green-600">
+            ✓ Optimisation avancée activée
+          </span>
+        )}
       </label>
       
       {/* Photos actuelles */}
@@ -132,9 +199,30 @@ export default function PhotoUpload({
             >
               <X className="w-4 h-4" />
             </button>
+            {/* Verification badge for uploaded photos */}
+            <div className="absolute bottom-1 left-1 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
+              <Check className="w-3 h-3" />
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Upload progress indicators */}
+      {Object.keys(uploadProgress).length > 0 && (
+        <div className="mb-4 space-y-2">
+          {Object.entries(uploadProgress).map(([fileId, progress]) => (
+            <div key={fileId} className="bg-gray-100 rounded-full overflow-hidden">
+              <div 
+                className="bg-blue-600 h-2 transition-all duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+              <div className="text-xs text-gray-600 mt-1">
+                Upload en cours... {progress}%
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Zone d'ajout de photo */}
       {photos.length < maxPhotos && (
@@ -160,7 +248,7 @@ export default function PhotoUpload({
 
           {/* Upload par fichier */}
           <div
-            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
               dragActive 
                 ? 'border-blue-500 bg-blue-50' 
                 : 'border-gray-300 hover:border-gray-400'
@@ -172,21 +260,45 @@ export default function PhotoUpload({
           >
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={(e) => handleFileUpload(e.target.files)}
               className="hidden"
               id="photo-upload"
+              disabled={loading}
             />
             <label htmlFor="photo-upload" className="cursor-pointer">
-              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              {loading ? (
+                <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-2 animate-spin" />
+              ) : (
+                <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              )}
               <p className="text-sm text-gray-600">
-                Cliquez pour sélectionner ou glissez une image
+                {loading ? 'Traitement en cours...' : 'Cliquez pour sélectionner ou glissez une image'}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                JPEG, PNG, GIF - Max 5MB
+                JPEG, PNG, WebP - Max 10MB
+                {enableAdvancedProcessing && ' - Optimisation automatique'}
               </p>
             </label>
           </div>
+
+          {/* Advanced processing info */}
+          {enableAdvancedProcessing && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <ImageIcon className="w-5 h-5 text-green-600 mt-0.5 mr-2" />
+                <div>
+                  <h4 className="font-medium text-green-800">Optimisation avancée activée</h4>
+                  <ul className="text-sm text-green-700 mt-1 space-y-1">
+                    <li>• Suppression automatique des données EXIF</li>
+                    <li>• Génération de tailles multiples (150px, 400px, 800px)</li>
+                    <li>• Compression WebP pour un chargement rapide</li>
+                    <li>• Upload sécurisé avec validation côté serveur</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Photos de test suggérées */}
           <div>
@@ -197,8 +309,8 @@ export default function PhotoUpload({
                   key={index}
                   type="button"
                   onClick={() => addPhoto(photo)}
-                  disabled={photos.includes(photo)}
-                  className="relative w-16 h-16 rounded-md overflow-hidden border border-gray-300 hover:border-blue-500 disabled:opacity-50"
+                  disabled={photos.includes(photo) || loading}
+                  className="relative w-16 h-16 rounded-md overflow-hidden border border-gray-300 hover:border-blue-500 disabled:opacity-50 transition-colors"
                 >
                   <img
                     src={photo}
@@ -207,7 +319,7 @@ export default function PhotoUpload({
                   />
                   {photos.includes(photo) && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                      <span className="text-white text-xs">✓</span>
+                      <Check className="text-white w-4 h-4" />
                     </div>
                   )}
                 </button>
@@ -225,11 +337,19 @@ export default function PhotoUpload({
         </div>
       )}
 
-      {/* Indicateur de chargement */}
-      {loading && (
-        <div className="flex items-center mt-2 text-blue-600 text-sm">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-          Upload en cours...
+      {/* Processed images info (for debugging) */}
+      {processedImages.length > 0 && (
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
+          <details>
+            <summary className="cursor-pointer">Images traitées ({processedImages.length})</summary>
+            <div className="mt-2 space-y-1">
+              {processedImages.map((img, idx) => (
+                <div key={idx}>
+                  {img.size.suffix || 'original'}: {img.size.width}x{img.size.height}
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
       )}
     </div>

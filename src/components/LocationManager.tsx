@@ -2,22 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { MapPin, Crosshair, Globe, AlertCircle } from 'lucide-react';
 import { profileService } from '../services/api';
 
-interface LocationManagerProps {
-  currentLocation?: string;
-  onLocationChange: (lat: number, lng: number, address?: string) => void;
-  className?: string;
-}
+export type LocationAccuracy = 'precise' | 'coarse' | 'disabled';
 
 interface LocationData {
   lat: number;
   lng: number;
-  address?: string;
+  address: string;
+  accuracy?: LocationAccuracy;
+  timestamp?: Date;
+}
+
+interface LocationManagerProps {
+  currentLocation?: string;
+  onLocationChange: (lat: number, lng: number, address: string, accuracy?: LocationAccuracy) => void;
+  className?: string;
+  showConsentHistory?: boolean;
 }
 
 export default function LocationManager({ 
   currentLocation, 
   onLocationChange, 
-  className = '' 
+  className = ''
 }: LocationManagerProps) {
   const [location, setLocation] = useState<LocationData | null>(null);
   const [manualAddress, setManualAddress] = useState('');
