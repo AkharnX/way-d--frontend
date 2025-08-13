@@ -26,6 +26,7 @@ import Events from './pages/Events';
 import AdminDashboard from './pages/AdminDashboard';
 import PostLoginRedirect from './components/PostLoginRedirect';
 import Settings from './pages/Settings';
+import ProfileFeaturesDemo from './pages/ProfileFeaturesDemo';
 import TokenDiagnostic from './components/TokenDiagnostic';
 import RequestLogsViewer from './components/RequestLogsViewer';
 
@@ -72,6 +73,7 @@ function App() {
                     <Route path="profile" element={<Profile />} />
                     <Route path="edit-profile" element={<EditProfile />} />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="profile-features-demo" element={<ProfileFeaturesDemo />} />
                   </Route>
 
                   {/* Legacy route redirects to maintain compatibility */}
