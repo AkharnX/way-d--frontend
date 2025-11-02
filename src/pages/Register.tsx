@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { ArrowLeft, ArrowRight, Briefcase, Calendar, Camera, Check, GraduationCap, Heart, Lock, Mail, MapPin, Navigation, Upload, User, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authService } from '../services/api';
-import { User, Mail, Lock, Heart, MapPin, Camera, Calendar, Briefcase, GraduationCap, ArrowRight, ArrowLeft, Check, Upload, X, Navigation } from 'lucide-react';
-import { POPULAR_COTE_DIVOIRE_LOCATIONS, getUserLocation, findClosestCity } from '../data/cotedivoire-locations';
+import { POPULAR_COTE_DIVOIRE_LOCATIONS, findClosestCity, getUserLocation } from '../data/cotedivoire-locations';
+import { authService, profileService } from '../services/api';
 
 interface RegistrationData {
   // Étape 1: Informations de base
@@ -13,7 +13,7 @@ interface RegistrationData {
   confirmPassword: string;
   gender: string;
   birthdate: string;
-  
+
   // Étape 2: Profil de base
   bio: string;
   height: number;
@@ -21,12 +21,12 @@ interface RegistrationData {
   country: string;
   occupation: string;
   education: string;
-  
+
   // Étape 3: Préférences et photos
   looking_for: string;
   interests: string[];
   photos: File[];
-  
+
   // Étape 4: Préférences de découverte
   min_age: number;
   max_age: number;
@@ -45,18 +45,18 @@ const calculateSmartDefaults = (userAge: number, location: string): SmartDefault
   // Adapter les préférences selon l'âge de l'utilisateur
   const minAge = Math.max(18, userAge - 5);
   const maxAge = Math.min(65, userAge + 10);
-  
+
   // Adapter la distance selon la localisation
   let maxDistance = 25; // Par défaut pour les grandes villes
   if (location.toLowerCase().includes('abidjan')) {
     maxDistance = 30; // Plus large pour Abidjan
-  } else if (location.toLowerCase().includes('yamoussoukro') || 
-             location.toLowerCase().includes('bouake')) {
+  } else if (location.toLowerCase().includes('yamoussoukro') ||
+    location.toLowerCase().includes('bouake')) {
     maxDistance = 50; // Plus large pour les villes moyennes
   } else {
     maxDistance = 100; // Très large pour les petites villes
   }
-  
+
   return { minAge, maxAge, maxDistance };
 };
 
@@ -65,7 +65,7 @@ const Register: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
+
   const [formData, setFormData] = useState<RegistrationData>({
     first_name: '',
     last_name: '',
@@ -83,7 +83,7 @@ const Register: React.FC = () => {
     looking_for: 'serious',
     interests: [],
     photos: [],
-    
+
     // Étape 4: Préférences de découverte avec valeurs par défaut intelligentes
     min_age: 20, // Valeur par défaut raisonnable
     max_age: 35, // Valeur par défaut raisonnable  
@@ -99,7 +99,7 @@ const Register: React.FC = () => {
       try {
         const coords = await getUserLocation();
         const closestCity = findClosestCity(coords.lat, coords.lng);
-        const suggestions = POPULAR_COTE_DIVOIRE_LOCATIONS.filter(loc => 
+        const suggestions = POPULAR_COTE_DIVOIRE_LOCATIONS.filter(loc =>
           loc.toLowerCase().includes(closestCity.toLowerCase())
         );
         if (suggestions.length > 0) {
@@ -117,9 +117,9 @@ const Register: React.FC = () => {
   }, []);
 
   const genderOptions = [
-    { value: 'man', label: '👨 Homme' },
-    { value: 'woman', label: '👩 Femme' },
-    { value: 'non-binary', label: '🌈 Non-binaire' }
+    { value: 'male', label: '👨 Homme' },
+    { value: 'female', label: '👩 Femme' },
+    { value: 'other', label: '🌈 Autre' }
   ];
 
   const lookingForOptions = [
@@ -158,19 +158,19 @@ const Register: React.FC = () => {
       const birthDate = new Date(newValue);
       const userAge = new Date().getFullYear() - birthDate.getFullYear();
       const smartDefaults = calculateSmartDefaults(userAge, formData.location);
-      
+
       setFormData(prev => ({
         ...prev,
         min_age: smartDefaults.minAge,
         max_age: smartDefaults.maxAge
       }));
     }
-    
+
     if (changedField === 'location' && newValue) {
       const birthDate = new Date(formData.birthdate);
       const userAge = birthDate ? new Date().getFullYear() - birthDate.getFullYear() : 25;
       const smartDefaults = calculateSmartDefaults(userAge, newValue);
-      
+
       setFormData(prev => ({
         ...prev,
         max_distance: smartDefaults.maxDistance
@@ -192,7 +192,7 @@ const Register: React.FC = () => {
         if (!formData.gender) newErrors.gender = 'Genre requis';
         if (!formData.birthdate) newErrors.birthdate = 'Date de naissance requise';
         break;
-      
+
       case 2:
         if (!formData.bio.trim()) newErrors.bio = 'Description requise';
         if (formData.bio.length < 20) newErrors.bio = 'Description trop courte (min 20 caractères)';
@@ -200,12 +200,12 @@ const Register: React.FC = () => {
         if (!formData.occupation.trim()) newErrors.occupation = 'Profession requise';
         if (!formData.education) newErrors.education = 'Niveau d\'éducation requis';
         break;
-      
+
       case 3:
         if (formData.interests.length < 3) newErrors.interests = 'Sélectionnez au moins 3 centres d\'intérêt';
         if (formData.photos.length < 2) newErrors.photos = 'Ajoutez au moins 2 photos';
         break;
-      
+
       case 4:
         if (formData.min_age < 18) newErrors.min_age = 'Âge minimum 18 ans';
         if (formData.max_age > 100) newErrors.max_age = 'Âge maximum 100 ans';
@@ -239,12 +239,26 @@ const Register: React.FC = () => {
         email: formData.email,
         password: formData.password,
         gender: formData.gender as 'male' | 'female' | 'other',
-        birth_date: formData.birthdate
+        birth_date: formData.birthdate // Correspondre au type RegisterData
       };
 
+      console.log('🔐 Création du compte utilisateur...');
       const response = await authService.register(authData);
+      console.log('✅ Compte utilisateur créé');
 
-      // 2. Stocker les données de profil pour création après connexion
+      // 2. Se connecter immédiatement pour obtenir un token
+      console.log('🔐 Connexion automatique...');
+      const loginData = {
+        email: formData.email,
+        password: formData.password,
+        rememberMe: false
+      };
+
+      await authService.login(loginData);
+      console.log('✅ Connexion automatique réussie');
+
+      // 3. Créer le profil immédiatement
+      console.log('👤 Création du profil...');
       const profileData = {
         bio: formData.bio,
         height: formData.height,
@@ -256,20 +270,31 @@ const Register: React.FC = () => {
         min_age: formData.min_age,
         max_age: formData.max_age,
         max_distance: formData.max_distance,
-        photos: formData.photos // Stocker aussi les photos
+        photos: formData.photos
       };
 
-      // Stocker les données de profil pour auto-création après connexion
-      localStorage.setItem('pending_profile_data', JSON.stringify(profileData));
+      try {
+        await profileService.createBasicProfile(profileData);
+        console.log('✅ Profil créé avec succès lors de l\'inscription');
 
-      // 3. Rediriger vers la vérification email
-      navigate('/verify-email', { 
-        state: { 
+        // Nettoyer les données temporaires puisque le profil est créé
+        localStorage.removeItem('pending_profile_data');
+
+      } catch (profileError: any) {
+        console.warn('⚠️ Échec de création de profil lors de l\'inscription:', profileError);
+
+        // En cas d'échec, stocker les données pour création ultérieure
+        localStorage.setItem('pending_profile_data', JSON.stringify(profileData));
+      }
+
+      // 4. Rediriger vers la vérification email
+      navigate('/verify-email', {
+        state: {
           email: formData.email,
           verification_code: response.verification_code,
           message: response.message,
           instructions: response.instructions,
-          profileData: profileData // Passer aussi dans l'état de navigation
+          profileCreated: true // Indiquer que le profil a été créé
         }
       });
 
@@ -310,17 +335,15 @@ const Register: React.FC = () => {
     <div className="flex items-center justify-between mb-8">
       {[1, 2, 3, 4].map((step) => (
         <div key={step} className="flex items-center">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-            step <= currentStep
-              ? 'bg-gradient-to-r from-pink-500 to-purple-600 border-pink-500 text-white'
-              : 'border-gray-300 text-gray-400'
-          }`}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${step <= currentStep
+            ? 'bg-gradient-to-r from-pink-500 to-purple-600 border-pink-500 text-white'
+            : 'border-gray-300 text-gray-400'
+            }`}>
             {step < currentStep ? <Check size={20} /> : step}
           </div>
           {step < 4 && (
-            <div className={`flex-1 h-1 mx-4 rounded transition-all ${
-              step < currentStep ? 'bg-gradient-to-r from-pink-500 to-purple-600' : 'bg-gray-200'
-            }`} />
+            <div className={`flex-1 h-1 mx-4 rounded transition-all ${step < currentStep ? 'bg-gradient-to-r from-pink-500 to-purple-600' : 'bg-gray-200'
+              }`} />
           )}
         </div>
       ))}
@@ -503,7 +526,7 @@ const Register: React.FC = () => {
               <option value="CM">🇨🇲 Cameroun</option>
               <option value="OTHER">🌍 Autre</option>
             </select>
-            
+
             <div className="relative">
               <input
                 type="text"
@@ -520,7 +543,7 @@ const Register: React.FC = () => {
                   try {
                     const coords = await getUserLocation();
                     const closestCity = findClosestCity(coords.lat, coords.lng);
-                    const suggestions = POPULAR_COTE_DIVOIRE_LOCATIONS.filter(loc => 
+                    const suggestions = POPULAR_COTE_DIVOIRE_LOCATIONS.filter(loc =>
                       loc.toLowerCase().includes(closestCity.toLowerCase())
                     );
                     if (suggestions.length > 0) {
@@ -543,7 +566,7 @@ const Register: React.FC = () => {
                 )}
               </button>
             </div>
-            
+
             <datalist id="locations-suggestions">
               {POPULAR_COTE_DIVOIRE_LOCATIONS.map((location) => (
                 <option key={location} value={location} />
@@ -645,11 +668,10 @@ const Register: React.FC = () => {
               key={interest}
               type="button"
               onClick={() => toggleInterest(interest)}
-              className={`p-3 rounded-xl border-2 transition-all text-center ${
-                formData.interests.includes(interest)
-                  ? 'border-pink-500 bg-pink-50 text-pink-700'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
+              className={`p-3 rounded-xl border-2 transition-all text-center ${formData.interests.includes(interest)
+                ? 'border-pink-500 bg-pink-50 text-pink-700'
+                : 'border-gray-300 hover:border-gray-400'
+                }`}
             >
               {interest}
             </button>
@@ -824,11 +846,10 @@ const Register: React.FC = () => {
                 type="button"
                 onClick={prevStep}
                 disabled={currentStep === 1}
-                className={`flex items-center px-6 py-3 rounded-xl transition-all ${
-                  currentStep === 1
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
+                className={`flex items-center px-6 py-3 rounded-xl transition-all ${currentStep === 1
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                  }`}
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />
                 Précédent

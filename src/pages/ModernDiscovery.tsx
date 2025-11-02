@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { Briefcase, Heart, MapPin, RotateCcw, Sparkles, TrendingUp, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Profile } from '../types';
-import { profileService, interactionsService } from '../services/api';
-import { logError, getErrorMessage } from '../utils/errorUtils';
-import { Heart, X, MapPin, Briefcase, Sparkles, RotateCcw, TrendingUp } from 'lucide-react';
+import { interactionsService, profileService } from '../services/api';
 import DiscoveryCache from '../services/discoveryCache';
+import type { Profile } from '../types';
+import { getErrorMessage, logError } from '../utils/errorUtils';
 
 const ModernDiscovery: React.FC = () => {
   const navigate = useNavigate();
@@ -37,7 +37,7 @@ const ModernDiscovery: React.FC = () => {
       setLoading(true);
       setError('');
       console.log('🔄 Loading optimized modern discovery profiles...');
-      
+
       // Try the new smart method first
       try {
         const smartData = await profileService.getSmartDiscoverProfiles();
@@ -49,7 +49,7 @@ const ModernDiscovery: React.FC = () => {
         }
         console.log('📭 Smart discovery returned no profiles, trying filtered method...');
       } catch (smartError) {
-        console.warn('Smart discovery failed, falling back to filtered method:', smartError);
+        console.debug('Smart discovery method not available, trying filtered method');
       }
 
       // Fallback to filtered method
@@ -63,13 +63,13 @@ const ModernDiscovery: React.FC = () => {
         }
         console.log('📭 Filtered discovery returned no profiles, trying regular method...');
       } catch (filteredError) {
-        console.warn('Filtered discovery failed, falling back to regular method:', filteredError);
+        console.debug('Filtered discovery method not available, trying regular method');
       }
 
       // Final fallback to regular discovery
       const data = await profileService.getDiscoverProfiles();
       console.log(`📊 Regular discovery loaded ${data.length} profiles`);
-      
+
       if (data.length === 0) {
         setError('Aucun nouveau profil à découvrir pour le moment. Revenez plus tard !');
       } else {
@@ -89,7 +89,7 @@ const ModernDiscovery: React.FC = () => {
       const userStats = await interactionsService.getUserStats();
       setStats(userStats);
     } catch (error) {
-      console.warn('Could not load stats:', error);
+      console.debug('Stats not available yet - using defaults');
     }
   };
 
@@ -112,37 +112,37 @@ const ModernDiscovery: React.FC = () => {
     try {
       setActionLoading(true);
       console.log(`💚 Liking profile: ${currentProfile.first_name}`);
-      
+
       // Add to cache immediately to prevent re-showing
       const profileId = currentProfile.id || currentProfile.user_id;
       if (profileId) {
         DiscoveryCache.addExcludedProfileIds([profileId]);
       }
-      
+
       const result = await interactionsService.likeProfile(currentProfile.id || currentProfile.user_id);
-      
+
       // Check if it's a match!
       if (result?.match) {
         console.log('🎉 IT\'S A MATCH!', result.match);
         setMatchModal({ show: true, profile: currentProfile });
         setStats(prev => ({ ...prev, totalMatches: prev.totalMatches + 1 }));
       }
-      
+
       // Remove this profile and move to next
       removeCurrentProfileAndNext();
-      
+
       setStats(prev => ({ ...prev, totalLikes: prev.totalLikes + 1 }));
       setLastAction({ type: 'like', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
     } catch (error: any) {
       logError('Error liking profile:', error);
-      
+
       if (error.response?.status === 409 && error.response?.data?.error === 'Already liked') {
         console.log(`⚠️ Profile ${currentProfile.first_name} was already liked - removing from discovery`);
         removeCurrentProfileAndNext();
         setLastAction({ type: 'like', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
         return;
       }
-      
+
       setError(getErrorMessage(error));
     } finally {
       setActionLoading(false);
@@ -155,36 +155,36 @@ const ModernDiscovery: React.FC = () => {
     try {
       setActionLoading(true);
       console.log(`❌ Disliking profile: ${currentProfile.first_name}`);
-      
+
       // Add to cache immediately to prevent re-showing
       const profileId = currentProfile.id || currentProfile.user_id;
       if (profileId) {
         DiscoveryCache.addExcludedProfileIds([profileId]);
       }
-      
+
       await interactionsService.dislikeProfile(currentProfile.id || currentProfile.user_id);
-      
+
       removeCurrentProfileAndNext();
-      
+
       setStats(prev => ({ ...prev, totalDislikes: prev.totalDislikes + 1 }));
       setLastAction({ type: 'dislike', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
     } catch (error: any) {
       logError('Error disliking profile:', error);
-      
+
       if (error.response?.status === 409 && error.response?.data?.error === 'Already disliked') {
         console.log(`⚠️ Profile ${currentProfile.first_name} was already disliked - removing from discovery`);
-        
+
         // Ensure it's in cache
         const profileId = currentProfile.id || currentProfile.user_id;
         if (profileId) {
           DiscoveryCache.addExcludedProfileIds([profileId]);
         }
-        
+
         removeCurrentProfileAndNext();
         setLastAction({ type: 'dislike', profileId: currentProfile.id || '', profileName: currentProfile.first_name || 'Utilisateur' });
         return;
       }
-      
+
       setError(getErrorMessage(error));
     } finally {
       setActionLoading(false);
@@ -194,11 +194,11 @@ const ModernDiscovery: React.FC = () => {
   const removeCurrentProfileAndNext = () => {
     const updatedProfiles = profiles.filter((_, index) => index !== currentProfileIndex);
     setProfiles(updatedProfiles);
-    
+
     if (currentProfileIndex >= updatedProfiles.length) {
       setCurrentProfileIndex(Math.max(0, updatedProfiles.length - 1));
     }
-    
+
     if (updatedProfiles.length === 0) {
       console.log('📭 No more profiles, attempting to load more...');
       loadProfiles();
@@ -234,8 +234,8 @@ const ModernDiscovery: React.FC = () => {
           </div>
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Aucun nouveau profil</h3>
           <p className="text-gray-600 mb-6">{error}</p>
-          <button 
-            onClick={refreshProfiles} 
+          <button
+            onClick={refreshProfiles}
             disabled={refreshing}
             className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105 disabled:opacity-50"
           >
@@ -267,8 +267,8 @@ const ModernDiscovery: React.FC = () => {
           <p className="text-gray-600 mb-6">
             Vous avez découvert tous les profils disponibles ! De nouveaux profils apparaîtront quand d'autres utilisateurs s'inscriront.
           </p>
-          <button 
-            onClick={refreshProfiles} 
+          <button
+            onClick={refreshProfiles}
             disabled={refreshing}
             className="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105 disabled:opacity-50"
           >
@@ -329,15 +329,15 @@ const ModernDiscovery: React.FC = () => {
                 <div className="text-6xl text-gray-400">👤</div>
               </div>
             )}
-            
+
             {/* Gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-            
+
             {/* Age badge */}
             <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1">
               <span className="text-sm font-semibold text-gray-800">{currentProfile.age} ans</span>
             </div>
-            
+
             {/* Name overlay */}
             <div className="absolute bottom-4 left-4 right-4">
               <h2 className="text-2xl font-bold text-white mb-1">
@@ -356,7 +356,7 @@ const ModernDiscovery: React.FC = () => {
                   <span className="text-sm text-gray-600">{currentProfile.profession || currentProfile.occupation}</span>
                 </div>
               )}
-              
+
               {currentProfile.location && (
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-pink-500" />
@@ -413,7 +413,7 @@ const ModernDiscovery: React.FC = () => {
           >
             <X className="w-8 h-8" />
           </button>
-          
+
           <button
             onClick={handleLike}
             disabled={actionLoading}
@@ -441,8 +441,8 @@ const ModernDiscovery: React.FC = () => {
           </div>
           {profiles.length > 1 && (
             <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-              <div 
-                className="bg-gradient-to-r from-pink-500 to-purple-600 h-2 rounded-full transition-all duration-500" 
+              <div
+                className="bg-gradient-to-r from-pink-500 to-purple-600 h-2 rounded-full transition-all duration-500"
                 style={{ width: `${((currentProfileIndex + 1) / profiles.length) * 100}%` }}
               ></div>
             </div>
@@ -511,8 +511,8 @@ const ModernDiscovery: React.FC = () => {
                   closeMatchModal();
                   // Navigate to messages with the new match
                   if (matchModal.profile) {
-                    navigate('/app/messages', { 
-                      state: { 
+                    navigate('/app/messages', {
+                      state: {
                         newMatch: matchModal.profile,
                         message: `Félicitations ! Vous avez matché avec ${matchModal.profile.first_name}. Commencez la conversation !`
                       }

@@ -1,6 +1,14 @@
-import axios from 'axios';
 import type { AxiosResponse } from 'axios';
-import type { AuthResponse, LoginData, RegisterData, User, Profile, Match, Message, TwoFactorSetupResponse, SocialAuthResponse } from '../types';
+import axios from 'axios';
+import type { AuthResponse, LoginData, Match, Message, Profile, RegisterData, SocialAuthResponse, TwoFactorSetupResponse, User } from '../types';
+import {
+  combineUserAndProfile,
+  debugTransformation,
+  transformProfileForBackend,
+  transformProfileFromBackend,
+  transformRegistrationForBackend,
+  validateForBackend
+} from '../utils/dataTransformers';
 import { getErrorMessage, logError } from '../utils/errorUtils';
 import { createRequestLoggerInterceptor } from '../utils/requestLogger';
 import DiscoveryCache from './discoveryCache';
@@ -147,10 +155,10 @@ export const setTokens = (access: string, refresh: string, rememberMe: boolean =
     // For remember me, set longer expiration times
     const accessExpiry = new Date();
     accessExpiry.setHours(accessExpiry.getHours() + 24); // 24 hours for access token
-    
+
     const refreshExpiry = new Date();
     refreshExpiry.setDate(refreshExpiry.getDate() + 30); // 30 days for refresh token
-    
+
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
     localStorage.setItem('token_expiry', accessExpiry.toISOString());
@@ -180,7 +188,7 @@ const requestLoggerInterceptor = createRequestLoggerInterceptor();
 [authApi, profileApi, interactionsApi, eventsApi, paymentsApi, notificationsApi, analyticsApi, adminApi].forEach(api => {
   // Add request logging
   api.interceptors.request.use(requestLoggerInterceptor.request, requestLoggerInterceptor.error);
-  
+
   // Add auth token
   api.interceptors.request.use(
     (config) => {
@@ -199,13 +207,13 @@ const requestLoggerInterceptor = createRequestLoggerInterceptor();
 [authApi, profileApi, interactionsApi, eventsApi, paymentsApi, notificationsApi, analyticsApi, adminApi].forEach(api => {
   // Add response logging
   api.interceptors.response.use(requestLoggerInterceptor.response, requestLoggerInterceptor.error);
-  
+
   // Add token refresh logic
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
       const originalRequest = error.config;
-      
+
       // Avoid infinite loops
       if (originalRequest._retry) {
         logError('Request retry failed, clearing tokens', error);
@@ -213,50 +221,50 @@ const requestLoggerInterceptor = createRequestLoggerInterceptor();
         // Ne pas rediriger automatiquement pour éviter les boucles
         return Promise.reject(error);
       }
-      
+
       const currentRefreshToken = localStorage.getItem('refresh_token');
       const currentAccessToken = localStorage.getItem('access_token');
-      
+
       // Seulement essayer de refresh si on a un 401 et un refresh token valide
       if (error.response?.status === 401 && currentRefreshToken && currentAccessToken && !originalRequest._retry) {
         originalRequest._retry = true;
-        
+
         try {
           logError('Attempting token refresh for request:', originalRequest.url);
-          
+
           // Use the separate token refresh API to avoid infinite loops
           const response = await tokenRefreshApi.post('/refresh-token', {
             refresh_token: currentRefreshToken,
           });
-          
+
           const newAccessToken = response.data.access_token;
           const newRefreshToken = response.data.refresh_token || currentRefreshToken;
           setTokens(newAccessToken, newRefreshToken);
-          
+
           logError('Token refresh successful, retrying original request', originalRequest.url);
-          
+
           // Update the authorization header for the retry
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          
+
           // Retry the original request with the same API instance
           return api.request(originalRequest);
         } catch (refreshError: any) {
           logError('Token refresh failed:', refreshError);
-          
+
           // Si le refresh token est invalide (401), nettoyer et laisser l'utilisateur se reconnecter
           if (refreshError.response?.status === 401) {
             logError('Refresh token is invalid, clearing all tokens', refreshError);
             clearTokens();
             localStorage.removeItem('user_email');
-            
+
             // Seulement rediriger si on n'est pas déjà sur une page de login
-            if (!window.location.pathname.includes('/login') && 
-                !window.location.pathname.includes('/register') && 
-                !window.location.pathname.includes('/token-diagnostic')) {
+            if (!window.location.pathname.includes('/login') &&
+              !window.location.pathname.includes('/register') &&
+              !window.location.pathname.includes('/token-diagnostic')) {
               window.location.href = '/login';
             }
           }
-          
+
           return Promise.reject(refreshError);
         }
       }
@@ -291,7 +299,7 @@ export const healthService = {
       };
     }
   },
-  
+
   checkProfile: async (): Promise<HealthResponse> => {
     try {
       // Use dedicated health endpoint with correct path
@@ -299,7 +307,7 @@ export const healthService = {
       const response = await axios.get(`${PROFILE_API_URL}/health`, { timeout: 3000 });
       return {
         status: response.data.status === 'ok' ? 'healthy' : 'unhealthy',
-        service: response.data.service || 'profile',  
+        service: response.data.service || 'profile',
         timestamp: response.data.timestamp || new Date().toISOString(),
         database: response.data.database,
         version: response.data.version
@@ -314,7 +322,7 @@ export const healthService = {
       };
     }
   },
-  
+
   checkInteractions: async (): Promise<HealthResponse> => {
     try {
       // Use dedicated health endpoint with correct path
@@ -337,19 +345,19 @@ export const healthService = {
       };
     }
   },
-  
+
   // Check all services at once
-  checkAll: async (): Promise<{ 
-    auth: HealthResponse; 
-    profile: HealthResponse; 
-    interactions: HealthResponse; 
+  checkAll: async (): Promise<{
+    auth: HealthResponse;
+    profile: HealthResponse;
+    interactions: HealthResponse;
   }> => {
     const [authResult, profileResult, interactionsResult] = await Promise.allSettled([
       healthService.checkAuth(),
-      healthService.checkProfile(), 
+      healthService.checkProfile(),
       healthService.checkInteractions()
     ]);
-    
+
     return {
       auth: authResult.status === 'fulfilled' ? authResult.value : {
         status: 'unhealthy',
@@ -381,8 +389,23 @@ export const authService = {
   },
 
   register: async (data: RegisterData): Promise<{ message: string; verification_code?: string; instructions?: string }> => {
-    const response = await authApi.post('/register', data);
-    return response.data;
+    try {
+      // Valider les données avant transformation
+      const validation = validateForBackend(data, 'user');
+      if (!validation.valid) {
+        throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      // Transformer les données pour le backend
+      const backendData = await transformRegistrationForBackend(data);
+      debugTransformation(data, backendData, 'Registration Frontend → Backend');
+
+      const response = await authApi.post('/register', backendData);
+      return response.data;
+    } catch (error) {
+      logError('Registration failed', error);
+      throw error;
+    }
   },
 
   verifyEmail: async (data: { email: string; code: string }): Promise<{ message: string }> => {
@@ -413,15 +436,15 @@ export const authService = {
     if (!currentRefreshToken) {
       throw new Error('No refresh token available');
     }
-    
+
     // Use the separate token refresh API to avoid infinite loops
     const response: AxiosResponse<AuthResponse> = await tokenRefreshApi.post('/refresh-token', {
       refresh_token: currentRefreshToken,
     });
-    
+
     // Update tokens in localStorage
     setTokens(response.data.access_token, response.data.refresh_token || currentRefreshToken);
-    
+
     return response.data;
   },
 
@@ -481,217 +504,6 @@ export const authService = {
   },
 };
 
-// Utility function to convert location string to coordinates for Côte d'Ivoire
-const getLocationCoordinates = async (locationString: string): Promise<{ lat: number; lng: number } | null> => {
-  // Mapping of Côte d'Ivoire cities and districts to coordinates
-  const locationMap: { [key: string]: { lat: number; lng: number } } = {
-    // Abidjan districts
-    'abidjan': { lat: 5.3600, lng: -4.0083 },
-    'cocody': { lat: 5.3474, lng: -3.9857 },
-    'plateau': { lat: 5.3189, lng: -4.0245 },
-    'yopougon': { lat: 5.3364, lng: -4.0822 },
-    'marcory': { lat: 5.2909, lng: -3.9827 },
-    'treichville': { lat: 5.2947, lng: -4.0030 },
-    'abobo': { lat: 5.4167, lng: -4.0167 },
-    'adjame': { lat: 5.3667, lng: -4.0167 },
-    'attecoube': { lat: 5.3167, lng: -4.0500 },
-    'koumassi': { lat: 5.2833, lng: -3.9667 },
-    'port-bouet': { lat: 5.2500, lng: -3.9167 },
-    
-    // Other major cities
-    'yamoussoukro': { lat: 6.8276, lng: -5.2893 },
-    'bouake': { lat: 7.6884, lng: -5.0306 },
-    'daloa': { lat: 6.8772, lng: -6.4503 },
-    'san-pedro': { lat: 4.7467, lng: -6.6364 },
-    'korhogo': { lat: 9.4581, lng: -5.6296 },
-    'man': { lat: 7.4125, lng: -7.5544 },
-    'gagnoa': { lat: 6.1316, lng: -5.9506 },
-    'divo': { lat: 5.8397, lng: -5.3572 },
-    'abengourou': { lat: 6.7294, lng: -3.4960 },
-    'grand-bassam': { lat: 5.2111, lng: -3.7378 },
-    'sassandra': { lat: 4.9500, lng: -6.0833 }
-  };
-  
-  // Extract city name from location string (handle "City - District" or "City" format)
-  const city = locationString.toLowerCase()
-    .split('-')[0].trim()
-    .replace(/\s+/g, '-');
-    
-  return locationMap[city] || locationMap['abidjan']; // Default to Abidjan
-};
-
-// Transform frontend ProfileForm data to backend Profile model format
-const transformProfileDataForBackend = async (frontendData: any) => {
-  console.log("🔄 Frontend data received:", frontendData);
-
-  // Calculate birthdate from age
-  const currentDate = new Date();
-  const birthYear = currentDate.getFullYear() - (frontendData.age || 25);
-  const birthdate = new Date(birthYear, 0, 1); // January 1st of birth year
-
-  const backendData: any = {
-    // Required fields according to Backend Profile model
-    height: parseInt(frontendData.height as string) || 175, // Default height in cm
-    profile_photo_url: frontendData.photos && frontendData.photos.length > 0 ? frontendData.photos[0] : "",
-    occupation: frontendData.profession || frontendData.occupation || "",
-    trait: frontendData.bio || frontendData.trait || "",
-    birthdate: birthdate.toISOString(),
-    active: true
-  };
-
-  // Convert location string to coordinates object for backend
-  if (frontendData.location) {
-    const coordinates = await getLocationCoordinates(frontendData.location);
-    if (coordinates) {
-      // Backend expects { lat: number, lng: number } for location processing
-      backendData.location = coordinates;
-    }
-  }
-
-  console.log("🔄 Backend data after transformation:", backendData);
-  return backendData;
-};
-
-// Transform backend Profile data to frontend format
-const transformBackendDataToFrontend = (backendData: any) => {
-  console.log("🔄 Backend data received for transformation:", backendData);
-  
-  const frontendData: any = {
-    // Map backend fields to frontend fields
-    first_name: backendData.first_name || '',
-    last_name: backendData.last_name || '',
-    bio: backendData.trait || '',
-    profession: backendData.occupation || '',
-    height: backendData.height || 175,
-    photos: backendData.profile_photo_url ? [backendData.profile_photo_url] : [],
-    interests: [], // TODO: Load from separate interests endpoint
-    looking_for: 'serious', // Default value
-    education: '',
-    active: backendData.active,
-    // Preserve backend fields too
-    id: backendData.id,
-    user_id: backendData.user_id,
-    created_at: backendData.created_at,
-    updated_at: backendData.updated_at,
-    trait: backendData.trait,
-    occupation: backendData.occupation,
-    profile_photo_url: backendData.profile_photo_url
-  };
-
-  console.log("🔄 Frontend data mapping step 1:", {
-    first_name: frontendData.first_name,
-    last_name: frontendData.last_name,
-    bio: frontendData.bio,
-    profession: frontendData.profession
-  });
-
-  // Calculate age from birthdate
-  if (backendData.birthdate) {
-    try {
-      console.log("🎂 Raw birthdate from backend:", backendData.birthdate);
-      const birthDate = new Date(backendData.birthdate);
-      console.log("🎂 Parsed birth date:", birthDate);
-      const today = new Date();
-      console.log("📅 Today:", today);
-      
-      // Vérifier que la date de naissance est valide
-      if (isNaN(birthDate.getTime()) || birthDate.getFullYear() < 1900 || birthDate.getFullYear() > today.getFullYear()) {
-        console.warn("⚠️ Invalid birthdate, using default age");
-        frontendData.age = 25;
-      } else {
-        const age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-          frontendData.age = age - 1;
-        } else {
-          frontendData.age = age;
-        }
-        
-        // Validation finale de l'âge calculé
-        if (frontendData.age < 16 || frontendData.age > 100) {
-          console.warn("⚠️ Calculated age seems invalid:", frontendData.age, "using default");
-          frontendData.age = 25;
-        }
-        
-        console.log("🧮 Final calculated age:", frontendData.age);
-      }
-    } catch (error) {
-      console.error('Error calculating age:', error);
-      frontendData.age = 25; // Default
-    }
-  } else {
-    console.log("⚠️ No birthdate found, using default age 25");
-    frontendData.age = 25; // Default
-  }
-
-  // Convert location from coordinates back to city name (if possible)
-  if (backendData.location && typeof backendData.location === 'object') {
-    // Try to reverse geocode coordinates to city name
-    const { lat, lng } = backendData.location;
-    frontendData.location = reverseGeocodeLocation(lat, lng);
-  } else if (typeof backendData.location === 'string') {
-    // If it's a string (WKT format), try to extract coordinates
-    frontendData.location = extractLocationFromWKT(backendData.location);
-  } else {
-    frontendData.location = '';
-  }
-
-  console.log("🔄 Frontend data after transformation:", frontendData);
-  return frontendData;
-};
-
-// Reverse geocode coordinates to city name for Côte d'Ivoire
-const reverseGeocodeLocation = (lat: number, lng: number): string => {
-  // Known locations in Côte d'Ivoire
-  const knownLocations = [
-    { name: 'Abidjan - Cocody', lat: 5.3474, lng: -3.9857, tolerance: 0.05 },
-    { name: 'Abidjan - Plateau', lat: 5.3189, lng: -4.0245, tolerance: 0.05 },
-    { name: 'Abidjan - Yopougon', lat: 5.3364, lng: -4.0822, tolerance: 0.05 },
-    { name: 'Abidjan - Marcory', lat: 5.2909, lng: -3.9827, tolerance: 0.05 },
-    { name: 'Abidjan - Treichville', lat: 5.2947, lng: -4.0030, tolerance: 0.05 },
-    { name: 'Abidjan', lat: 5.3600, lng: -4.0083, tolerance: 0.1 },
-    { name: 'Yamoussoukro', lat: 6.8276, lng: -5.2893, tolerance: 0.1 },
-    { name: 'Bouaké', lat: 7.6884, lng: -5.0306, tolerance: 0.1 },
-    { name: 'Daloa', lat: 6.8772, lng: -6.4503, tolerance: 0.1 },
-    { name: 'San-Pédro', lat: 4.7467, lng: -6.6364, tolerance: 0.1 },
-    { name: 'Korhogo', lat: 9.4581, lng: -5.6296, tolerance: 0.1 },
-    { name: 'Man', lat: 7.4125, lng: -7.5544, tolerance: 0.1 },
-    { name: 'Gagnoa', lat: 6.1316, lng: -5.9506, tolerance: 0.1 },
-    { name: 'Divo', lat: 5.8397, lng: -5.3572, tolerance: 0.1 },
-    { name: 'Abengourou', lat: 6.7294, lng: -3.4960, tolerance: 0.1 },
-    { name: 'Grand-Bassam', lat: 5.2111, lng: -3.7378, tolerance: 0.1 },
-    { name: 'Sassandra', lat: 4.9500, lng: -6.0833, tolerance: 0.1 }
-  ];
-
-  for (const location of knownLocations) {
-    if (Math.abs(lat - location.lat) < location.tolerance && 
-        Math.abs(lng - location.lng) < location.tolerance) {
-      return location.name;
-    }
-  }
-
-  // If no match found, return coordinates as string
-  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-};
-
-// Extract location from WKT (Well-Known Text) format
-const extractLocationFromWKT = (wkt: string): string => {
-  try {
-    // WKT format: "POINT(lng lat)" 
-    const match = wkt.match(/POINT\(([^)]+)\)/);
-    if (match) {
-      const coords = match[1].split(' ');
-      const lng = parseFloat(coords[0]);
-      const lat = parseFloat(coords[1]);
-      return reverseGeocodeLocation(lat, lng);
-    }
-  } catch (error) {
-    console.error('Error parsing WKT:', error);
-  }
-  return '';
-};
-
 // Profile API functions
 export const profileService = {
   // Core profile management
@@ -699,33 +511,52 @@ export const profileService = {
     try {
       // Get both profile and user data
       console.log('🔍 Starting profile data fetch...');
-      const [profileResponse, userResponse] = await Promise.all([
-        profileApi.get('/me'),
-        authApi.get('/me')
-      ]);
-      
+
+      // Try to get both profile and user data, but handle profile 404 gracefully
+      let profileResponse: any = null;
+      let userResponse: any = null;
+
+      try {
+        [profileResponse, userResponse] = await Promise.all([
+          profileApi.get('/me'),
+          authApi.get('/me')
+        ]);
+      } catch (error: any) {
+        // If profile doesn't exist but we can get user data, handle gracefully
+        if (error.response?.status === 404 && error.config?.url?.includes('/profile/')) {
+          console.debug('Profile not found, checking user data for creation context');
+          try {
+            userResponse = await authApi.get('/me');
+            console.log('🔍 User data for new profile creation:', userResponse.data);
+            // Re-throw the original error so components handle profile creation
+            throw error;
+          } catch (userError) {
+            console.debug('Cannot get user data either');
+            throw error;
+          }
+        }
+        throw error;
+      }
+
       console.log('👤 User data:', userResponse.data);
       console.log('🎭 Profile data:', profileResponse.data);
-      
-      // Combine profile and user data
-      const combinedData = {
-        ...profileResponse.data,
-        first_name: userResponse.data.first_name,
-        last_name: userResponse.data.last_name,
-        birthdate: userResponse.data.birth_date || profileResponse.data.birthdate
-      };
-      
-      console.log('🔄 Combined data before transformation:', combinedData);
-      const transformedData = transformBackendDataToFrontend(combinedData);
-      console.log('✅ Final transformed profile data:', transformedData);
-      return transformedData;
+
+      // Transform backend data to frontend format using our standardized transformers
+      const profileData = combineUserAndProfile(userResponse.data, profileResponse.data);
+
+      debugTransformation(
+        { user: userResponse.data, profile: profileResponse.data },
+        profileData,
+        'Profile Get Backend → Frontend'
+      ); console.log('✅ Final transformed profile data:', profileData);
+      return profileData;
     } catch (error: any) {
       // If profile doesn't exist, try to get user data for profile creation context
       if (error.response?.status === 404) {
         try {
           const userResponse = await authApi.get('/me');
           console.log('🔍 User data for new profile creation:', userResponse.data);
-          
+
           // Don't return fake data - let the 404 error bubble up so the component
           // can handle profile creation properly
           throw error;
@@ -738,20 +569,52 @@ export const profileService = {
   },
 
   createProfile: async (data: any): Promise<Profile> => {
-    console.log("🔄 Frontend data before transformation:", data);
-    const backendData = await transformProfileDataForBackend(data);
-    console.log("🔄 Backend data after transformation:", backendData);
-    const response: AxiosResponse<Profile> = await profileApi.put('/me', backendData);
-    console.log("✅ Profile created successfully:", response.data);
-    return response.data;
+    try {
+      console.log("🔄 Frontend data before transformation:", data);
+
+      // Valider les données avant transformation
+      const validation = validateForBackend(data, 'profile');
+      if (!validation.valid) {
+        throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      // Transformer les données pour le backend
+      const backendData = await transformProfileForBackend(data);
+      debugTransformation(data, backendData, 'Profile Create Frontend → Backend');
+
+      const response: AxiosResponse<any> = await profileApi.put('/me', backendData);
+      console.log("✅ Profile created successfully:", response.data);
+
+      // Transformer la réponse du backend vers le frontend
+      const frontendProfile = transformProfileFromBackend(response.data);
+      debugTransformation(response.data, frontendProfile, 'Profile Create Backend → Frontend');
+
+      return frontendProfile;
+    } catch (error) {
+      logError('Profile creation failed', error);
+      throw error;
+    }
   },
 
   updateProfile: async (data: Partial<Profile>): Promise<Profile> => {
-    console.log("🔄 Frontend data before transformation:", data);
-    const backendData = await transformProfileDataForBackend(data);
-    console.log("🔄 Backend data after transformation:", backendData);
-    const response: AxiosResponse<Profile> = await profileApi.put('/me', backendData);
-    return response.data;
+    try {
+      console.log("🔄 Frontend data before transformation:", data);
+
+      // Transformer les données pour le backend
+      const backendData = await transformProfileForBackend(data);
+      debugTransformation(data, backendData, 'Profile Update Frontend → Backend');
+
+      const response: AxiosResponse<any> = await profileApi.put('/me', backendData);
+
+      // Transformer la réponse du backend vers le frontend
+      const frontendProfile = transformProfileFromBackend(response.data);
+      debugTransformation(response.data, frontendProfile, 'Profile Update Backend → Frontend');
+
+      return frontendProfile;
+    } catch (error) {
+      logError('Profile update failed', error);
+      throw error;
+    }
   },
 
   deleteProfile: async (): Promise<void> => {
@@ -819,34 +682,39 @@ export const profileService = {
       console.log(`🔍 Fetching discovery profiles with offset ${offset}...`);
       const response: AxiosResponse<Profile[]> = await profileApi.get(`/discover?offset=${offset}`);
       const profiles = response.data;
-      
+
       // Vérifier que le résultat est un tableau valide
       if (!profiles || !Array.isArray(profiles)) {
         console.warn('❌ Discovery endpoint returned invalid data:', profiles);
         return [];
       }
-      
+
       // Transformer les données pour assurer la compatibilité frontend
       const transformedProfiles = profiles.map(profile => {
         try {
-          return transformBackendDataToFrontend(profile);
+          // Si le profil a déjà des champs frontend, le retourner tel quel
+          if (profile.age !== undefined || profile.bio !== undefined) {
+            return profile as Profile;
+          }
+          // Sinon, le transformer depuis le format backend
+          return transformProfileFromBackend(profile as any);
         } catch (transformError) {
           console.warn('❌ Failed to transform profile:', profile, transformError);
           return null;
         }
       }).filter(profile => profile !== null);
-      
+
       console.log(`✅ Successfully loaded ${transformedProfiles.length} discovery profiles`);
       return transformedProfiles;
-      
+
     } catch (error: any) {
       console.error('❌ Discovery profiles fetch failed:', error);
-      
+
       // Si c'est une erreur d'authentification, la propager
       if (error.response?.status === 401) {
         throw error;
       }
-      
+
       // Pour les autres erreurs, retourner un tableau vide
       return [];
     }
@@ -856,7 +724,7 @@ export const profileService = {
   getFilteredDiscoverProfiles: async (): Promise<Profile[]> => {
     try {
       console.log('🔍 Fetching filtered discovery profiles (optimized)...');
-      
+
       // Vérification de l'authentification
       const token = localStorage.getItem('access_token');
       if (!token) {
@@ -894,7 +762,7 @@ export const profileService = {
 
       // Process current user result
       const currentUserId = currentUser.status === 'fulfilled' ? currentUser.value?.id || '' : '';
-      
+
       console.log(`🔄 User interactions: ${likes.length} likes, ${dislikes.length} dislikes, currentUser: ${currentUserId}`);
 
       // Step 3: Create set of excluded user IDs for efficient filtering
@@ -912,7 +780,12 @@ export const profileService = {
         })
         .map(profile => {
           try {
-            return transformBackendDataToFrontend(profile);
+            // Si le profil a déjà des champs frontend, le retourner tel quel
+            if (profile.age !== undefined || profile.bio !== undefined) {
+              return profile as Profile;
+            }
+            // Sinon, le transformer depuis le format backend
+            return transformProfileFromBackend(profile as any);
           } catch (transformError) {
             console.warn('❌ Failed to transform profile:', profile, transformError);
             return null;
@@ -922,16 +795,16 @@ export const profileService = {
 
       console.log(`✅ Filtered profiles: ${allProfiles.length} → ${filteredProfiles.length} (excluded ${allProfiles.length - filteredProfiles.length} already seen/own profiles)`);
       return filteredProfiles;
-      
+
     } catch (error: any) {
       console.error('❌ Error fetching filtered profiles:', error);
-      
+
       // Smart fallback: still try to filter even on error
       try {
         console.log('🔄 Attempting filtered fallback...');
         const fallbackResponse: AxiosResponse<Profile[]> = await profileApi.get('/discover?limit=50');
         const fallbackProfiles = fallbackResponse.data || [];
-        
+
         if (fallbackProfiles.length > 0) {
           // Try to get interactions for filtering even in fallback
           let userInteractions;
@@ -953,7 +826,12 @@ export const profileService = {
             })
             .map(profile => {
               try {
-                return transformBackendDataToFrontend(profile);
+                // Si le profil a déjà des champs frontend, le retourner tel quel
+                if (profile.age !== undefined || profile.bio !== undefined) {
+                  return profile as Profile;
+                }
+                // Sinon, le transformer depuis le format backend
+                return transformProfileFromBackend(profile as any);
               } catch (transformError) {
                 return null;
               }
@@ -963,7 +841,7 @@ export const profileService = {
           console.log(`✅ Filtered fallback: ${fallbackProfiles.length} → ${filteredFallback.length} profiles`);
           return filteredFallback;
         }
-        
+
         return [];
       } catch (fallbackError) {
         console.error('❌ Fallback discovery also failed:', fallbackError);
@@ -976,11 +854,11 @@ export const profileService = {
   getSmartDiscoverProfiles: async (): Promise<Profile[]> => {
     try {
       console.log('🧠 Getting smart filtered discovery profiles...');
-      
+
       // Get fresh profiles from backend
       const response: AxiosResponse<Profile[]> = await profileApi.get('/discover?limit=100');
       const profiles = response.data || [];
-      
+
       if (profiles.length === 0) {
         console.log('📭 No profiles available from discovery endpoint');
         return [];
@@ -997,13 +875,13 @@ export const profileService = {
 
       // Get cached excluded IDs (profiles already shown but not necessarily liked/disliked)
       const cachedExcludedIds = DiscoveryCache.getExcludedProfileIds();
-      
+
       // Create comprehensive exclusion set
       const likes = userInteractions?.likes || [];
       const dislikes = userInteractions?.dislikes || [];
       const allExcludedIds = new Set([
         ...likes,
-        ...dislikes, 
+        ...dislikes,
         ...cachedExcludedIds
       ]);
 
@@ -1017,7 +895,12 @@ export const profileService = {
         })
         .map(profile => {
           try {
-            return transformBackendDataToFrontend(profile);
+            // Si le profil a déjà des champs frontend, le retourner tel quel
+            if (profile.age !== undefined || profile.bio !== undefined) {
+              return profile as Profile;
+            }
+            // Sinon, le transformer depuis le format backend
+            return transformProfileFromBackend(profile as any);
           } catch (transformError) {
             console.warn('Transform error for profile:', profile, transformError);
             return null;
@@ -1076,15 +959,15 @@ export const profileService = {
       const response = await profileApi.get('/interests/suggestions');
       return response.data.interests || [];
     } catch (error) {
-      console.error('Error fetching interests suggestions:', error);
-      
+      // Silently fall back to localized data - this is expected behavior
+      console.debug('Using fallback interests data (backend endpoint not available)');
+
       // Smart fallback: Use centralized localized data
       try {
         const { configService } = await import('./configService');
         const config = await configService.getConfig();
         return config.defaultInterests || getLocalizedInterests();
       } catch (configError) {
-        console.warn('Config service unavailable, using localized fallback:', configError);
         return getLocalizedInterests();
       }
     }
@@ -1095,15 +978,15 @@ export const profileService = {
       const response = await profileApi.get('/professions/suggestions');
       return response.data.professions || [];
     } catch (error) {
-      console.error('Error fetching professions suggestions:', error);
-      
+      // Silently fall back to localized data - this is expected behavior
+      console.debug('Using fallback professions data (backend endpoint not available)');
+
       // Smart fallback: Use centralized localized data
       try {
         const { configService } = await import('./configService');
         const config = await configService.getConfig();
         return config.defaultProfessions || getLocalizedProfessions();
       } catch (configError) {
-        console.warn('Config service unavailable, using localized fallback:', configError);
         return getLocalizedProfessions();
       }
     }
@@ -1114,15 +997,15 @@ export const profileService = {
       const response = await profileApi.get('/education/suggestions');
       return response.data.education_levels || [];
     } catch (error) {
-      console.error('Error fetching education levels:', error);
-      
+      // Silently fall back to localized data - this is expected behavior
+      console.debug('Using fallback education levels data (backend endpoint not available)');
+
       // Smart fallback: Use centralized localized data
       try {
         const { configService } = await import('./configService');
         const config = await configService.getConfig();
         return config.defaultEducationLevels || getLocalizedEducationLevels();
       } catch (configError) {
-        console.warn('Config service unavailable, using localized fallback:', configError);
         return getLocalizedEducationLevels();
       }
     }
@@ -1133,15 +1016,15 @@ export const profileService = {
       const response = await profileApi.get('/looking-for/options');
       return response.data.options || [];
     } catch (error) {
-      console.error('Error fetching looking for options:', error);
-      
+      // Silently fall back to localized data - this is expected behavior
+      console.debug('Using fallback looking-for options data (backend endpoint not available)');
+
       // Smart fallback: Use centralized localized data
       try {
         const { configService } = await import('./configService');
         const config = await configService.getConfig();
         return config.defaultLookingForOptions || getLocalizedLookingForOptions();
       } catch (configError) {
-        console.warn('Config service unavailable, using localized fallback:', configError);
         return getLocalizedLookingForOptions();
       }
     }
@@ -1152,15 +1035,14 @@ export const profileService = {
       const response = await profileApi.get('/gender/options');
       return response.data.options || [];
     } catch (error) {
-      console.error('Error fetching gender options:', error);
-      
+      console.debug('Using fallback gender options data (backend endpoint not available)');
+
       // Smart fallback: Use centralized localized data
       try {
         const { configService } = await import('./configService');
         const config = await configService.getConfig();
         return config.defaultGenderOptions || getLocalizedGenderOptions();
       } catch (configError) {
-        console.warn('Config service unavailable, using localized fallback:', configError);
         return getLocalizedGenderOptions();
       }
     }
@@ -1169,15 +1051,24 @@ export const profileService = {
   // Automatic profile creation
   createBasicProfile: async (data: any): Promise<Profile> => {
     console.log("🤖 Creating basic profile automatically:", data);
-    const response: AxiosResponse<any> = await profileApi.post('/auto-create', {
-      height: data.height || 175,
-      bio: data.bio || '',
-      location: data.location ? await getLocationCoordinates(data.location) : null,
-      location_string: data.location || '',
-      looking_for: data.looking_for || 'serious'
-    });
+
+    // Transform data to backend format using our standardized transformers
+    const backendData = transformProfileForBackend(data);
+
+    console.log("📤 Transformed data for backend:", backendData);
+
+    const response: AxiosResponse<any> = await profileApi.put('/me', backendData);
     console.log("✅ Basic profile created:", response.data);
-    return response.data.profile;
+
+    // Transform response back to frontend format
+    try {
+      // Get user data for proper combination
+      const userResponse = await authApi.get('/me');
+      return combineUserAndProfile(userResponse.data, response.data);
+    } catch (error) {
+      console.warn('Could not get user data for profile combination, returning raw profile');
+      return response.data;
+    }
   },
 };
 
@@ -1340,7 +1231,7 @@ export const eventsService = {
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.type) queryParams.append('type', params.type);
     if (params?.location) queryParams.append('location', params.location);
-    
+
     const response = await eventsApi.get(`?${queryParams.toString()}`);
     return response.data;
   },
@@ -1452,7 +1343,7 @@ export const paymentsService = {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
-    
+
     const response = await paymentsApi.get(`/history?${queryParams.toString()}`);
     return response.data;
   },
@@ -1470,7 +1361,7 @@ export const notificationsService = {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.unread_only) queryParams.append('unread_only', params.unread_only.toString());
-    
+
     const response = await notificationsApi.get(`?${queryParams.toString()}`);
     return response.data;
   },
@@ -1580,10 +1471,10 @@ export const logActivity = async (action: string, resource: string, resourceId?:
 export const startAnalyticsSession = async (): Promise<{ success: boolean; session_id?: string; message: string }> => {
   try {
     const response = await analyticsApi.post('/sessions');
-    return { 
-      success: true, 
+    return {
+      success: true,
       session_id: response.data.session_id,
-      message: 'Session started successfully' 
+      message: 'Session started successfully'
     };
   } catch (error: any) {
     logError('Failed to start session', error);
@@ -1694,15 +1585,15 @@ export interface Announcement {
 export const adminLogin = async (username: string, password: string): Promise<{ success: boolean; token?: string; admin?: AdminUser; message: string }> => {
   try {
     const response = await adminApi.post('/auth/login', { username, password });
-    
+
     // Store admin token separately from user token
     localStorage.setItem('admin_token', response.data.token);
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       token: response.data.token,
       admin: response.data.admin,
-      message: 'Admin login successful' 
+      message: 'Admin login successful'
     };
   } catch (error: any) {
     logError('Admin login failed', error);
@@ -1799,10 +1690,10 @@ export const createAnnouncement = async (announcement: {
 }): Promise<{ success: boolean; id?: number; message: string }> => {
   try {
     const response = await adminApi.post('/admin/announcements', announcement);
-    return { 
-      success: true, 
+    return {
+      success: true,
       id: response.data.id,
-      message: 'Announcement created successfully' 
+      message: 'Announcement created successfully'
     };
   } catch (error: any) {
     logError('Failed to create announcement', error);

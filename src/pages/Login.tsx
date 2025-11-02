@@ -1,17 +1,17 @@
+import { AlertCircle, ArrowLeft, Eye, EyeOff, Loader2, Lock, Mail, WifiOff } from 'lucide-react';
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { formatErrorForUser } from '../utils/apiErrorUtils';
-import { authService } from '../services/api';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, WifiOff } from 'lucide-react';
-import TwoFactorVerify from '../components/TwoFactorVerify';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SocialLoginButtons from '../components/SocialLoginButtons';
+import TwoFactorVerify from '../components/TwoFactorVerify';
+import { useAuth } from '../hooks/useAuth';
+import { authService } from '../services/api';
+import { formatErrorForUser } from '../utils/apiErrorUtils';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -48,7 +48,7 @@ const Login: React.FC = () => {
 
     try {
       const response = await authService.login(formData);
-      
+
       // Check if 2FA is required
       if (response.requires_2fa) {
         setPendingLogin(formData);
@@ -56,7 +56,7 @@ const Login: React.FC = () => {
         setLoading(false);
         return;
       }
-      
+
       // Regular login success - use the auth hook to set tokens
       await login(formData);
       navigate('/post-login-redirect', { replace: true });
@@ -71,7 +71,7 @@ const Login: React.FC = () => {
 
   const handle2FAVerify = async (code: string) => {
     if (!pendingLogin) return;
-    
+
     setError('');
     setLoading(true);
 
@@ -80,11 +80,11 @@ const Login: React.FC = () => {
         email: pendingLogin.email,
         code
       });
-      
+
       // Set tokens and authenticate user
       localStorage.setItem('access_token', response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);
-      
+
       navigate('/post-login-redirect', { replace: true });
     } catch (err: any) {
       const userFriendlyError = formatErrorForUser(err);
@@ -99,20 +99,16 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = provider === 'google' 
+      const response = provider === 'google'
         ? await authService.googleAuth({ token })
         : await authService.facebookAuth({ token });
-      
+
       // Set tokens
       localStorage.setItem('access_token', response.access_token);
       localStorage.setItem('refresh_token', response.refresh_token);
-      
-      // If new user, redirect to profile creation
-      if (response.is_new_user) {
-        navigate('/create-profile', { replace: true });
-      } else {
-        navigate('/post-login-redirect', { replace: true });
-      }
+
+      // Always redirect to dashboard - profiles are created during registration
+      navigate('/post-login-redirect', { replace: true });
     } catch (err: any) {
       const userFriendlyError = formatErrorForUser(err);
       setError(userFriendlyError);
@@ -145,8 +141,8 @@ const Login: React.FC = () => {
       <div className="w-full max-w-lg">
         {/* Back Button */}
         <div className="mb-8">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className="inline-flex items-center text-white/80 hover:text-white transition-colors text-lg"
           >
             <ArrowLeft className="w-6 h-6 mr-3" />
@@ -159,9 +155,9 @@ const Login: React.FC = () => {
           {/* Header avec Logo */}
           <div className="text-center mb-10">
             <div className="mb-6">
-              <img 
-                src="/logo-name-blue.png" 
-                alt="Way-d" 
+              <img
+                src="/logo-name-blue.png"
+                alt="Way-d"
                 className="h-16 w-auto mx-auto"
               />
             </div>
@@ -272,8 +268,8 @@ const Login: React.FC = () => {
                   Se souvenir de moi
                 </label>
               </div>
-              <Link 
-                to="/forgot-password" 
+              <Link
+                to="/forgot-password"
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 Mot de passe oublié ?
@@ -306,16 +302,16 @@ const Login: React.FC = () => {
 
           {/* Links */}
           <div className="mt-10 text-center space-y-6">
-            <Link 
-              to="/register" 
+            <Link
+              to="/register"
               className="way-d-secondary hover:way-d-primary font-medium transition-colors text-lg"
             >
               Pas encore de compte ? Inscrivez-vous
             </Link>
-            
+
             {/* Forgot Password (placeholder) */}
             <div>
-              <button 
+              <button
                 type="button"
                 className="text-gray-500 hover:text-gray-700 transition-colors text-base"
                 onClick={() => navigate('/forgot-password')}

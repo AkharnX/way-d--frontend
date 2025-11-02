@@ -111,9 +111,8 @@ function EditProfile() {
       }
     } catch (error: any) {
       console.error('Error loading profile:', error);
-      if (error.response?.status === 404) {
-        navigate('/create-profile');
-      }
+      // With new architecture, redirect to dashboard if profile not found
+      navigate('/app');
     } finally {
       setLoadingProfile(false);
     }

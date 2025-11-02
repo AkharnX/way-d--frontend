@@ -68,11 +68,11 @@ class ConfigService {
     defaultProfessions: [
       'Étudiant(e)', 'Ingénieur(e)', 'Médecin', 'Professeur(e)', 'Commercial(e)',
       'Artiste', 'Entrepreneur(e)', 'Avocat(e)', 'Infirmier(e)', 'Architecte',
-      'Designer', 'Développeur(euse)', 'Marketing', 'Consultant(e)', 
+      'Designer', 'Développeur(euse)', 'Marketing', 'Consultant(e)',
       'Journaliste', 'Banquier(e)', 'Pharmacien(ne)', 'Autre'
     ],
     defaultEducationLevels: [
-      'Collège', 'Lycée', 'Bac+2', 'Bac+3', 'Bac+5', 'Master', 'Doctorat', 
+      'Collège', 'Lycée', 'Bac+2', 'Bac+3', 'Bac+5', 'Master', 'Doctorat',
       'École de commerce', 'École d\'ingénieur', 'Formation professionnelle', 'Autre'
     ],
     defaultLookingForOptions: [
@@ -115,7 +115,7 @@ class ConfigService {
       // TODO: Implement when admin/config endpoint is ready
       // const response = await adminApi.get('/config/app');
       // this.config = response.data;
-      
+
       // For now, merge environment variables with defaults
       this.config = {
         ...this.defaultConfig,
@@ -131,7 +131,7 @@ class ConfigService {
 
       return this.config;
     } catch (error) {
-      console.warn('Could not load config from backend, using defaults:', error);
+      console.debug('Using default configuration (backend config not available)');
       this.config = this.defaultConfig;
       return this.config;
     }

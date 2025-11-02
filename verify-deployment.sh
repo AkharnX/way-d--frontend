@@ -1,1 +1,0 @@
-tools/deployment/verify-deployment.sh

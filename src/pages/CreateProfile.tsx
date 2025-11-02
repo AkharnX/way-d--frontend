@@ -152,8 +152,8 @@ function CreateProfile() {
         lookingForOptions: lookingFor
       });
     } catch (error) {
-      console.error('Error loading dynamic data:', error);
-      // Keep fallback data that's already set in state
+      console.debug('Dynamic data loading completed with fallbacks');
+      // Keep fallback data that's already set in state - this is expected behavior
     }
   };
 

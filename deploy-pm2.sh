@@ -1,1 +1,0 @@
-tools/deployment/deploy-pm2.sh

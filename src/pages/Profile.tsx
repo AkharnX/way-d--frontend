@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { Calendar, Edit, Heart, MapPin, Plus, Settings, User } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Profile as ProfileType } from '../types';
 import { profileService } from '../services/api';
-import { logError, getErrorMessage } from '../utils/errorUtils';
-import { Edit, MapPin, Calendar, Heart, Plus, User, Settings } from 'lucide-react';
+import type { Profile as ProfileType } from '../types';
+import { getErrorMessage, logError } from '../utils/errorUtils';
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -21,11 +21,6 @@ export const ProfilePage: React.FC = () => {
       setProfile(data);
     } catch (error: any) {
       logError('Error loading profile:', error);
-      // Si le profil n'existe pas (404), rediriger vers la création
-      if (error.response?.status === 404) {
-        navigate('/create-profile');
-        return;
-      }
       setError(getErrorMessage(error));
     } finally {
       setLoading(false);
@@ -34,10 +29,6 @@ export const ProfilePage: React.FC = () => {
 
   const handleEdit = () => {
     navigate('/edit-profile');
-  };
-
-  const handleCreateProfile = () => {
-    navigate('/create-profile');
   };
 
   if (loading) {
@@ -59,17 +50,17 @@ export const ProfilePage: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Profil introuvable</h2>
           <div className="text-red-600 mb-4">{error}</div>
           <div className="space-x-4">
-            <button 
-              onClick={loadProfile} 
+            <button
+              onClick={loadProfile}
               className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
             >
               Réessayer
             </button>
-            <button 
-              onClick={handleCreateProfile}
+            <button
+              onClick={handleEdit}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              Créer un profil
+              Modifier le profil
             </button>
           </div>
         </div>
@@ -84,12 +75,12 @@ export const ProfilePage: React.FC = () => {
           <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Aucun profil trouvé</h2>
           <p className="text-gray-600 mb-6">Créez votre profil pour commencer à utiliser Way-d</p>
-          <button 
-            onClick={handleCreateProfile}
+          <button
+            onClick={handleEdit}
             className="px-6 py-3 bg-way-d-secondary text-white rounded-md hover:bg-way-d-secondary/90 flex items-center mx-auto"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Créer mon profil
+            Modifier mon profil
           </button>
         </div>
       </div>
@@ -134,7 +125,7 @@ export const ProfilePage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button
                   onClick={handleEdit}
@@ -209,7 +200,7 @@ export const ProfilePage: React.FC = () => {
                         <span className="ml-2 text-gray-900">{profile.profession}</span>
                       </div>
                     )}
-                    
+
                     {profile.education && (
                       <div className="flex items-center">
                         <span className="text-gray-600 text-sm">Éducation:</span>
@@ -223,10 +214,10 @@ export const ProfilePage: React.FC = () => {
                         <div>
                           <span className="text-gray-600 text-sm block">Recherche:</span>
                           <span className="text-gray-900 text-sm">
-                            {profile.looking_for === 'serious' ? 'Une relation sérieuse' : 
-                             profile.looking_for === 'casual' ? 'Quelque chose de décontracté' :
-                             profile.looking_for === 'friends' ? 'Des amis' :
-                             'Je ne sais pas encore'}
+                            {profile.looking_for === 'serious' ? 'Une relation sérieuse' :
+                              profile.looking_for === 'casual' ? 'Quelque chose de décontracté' :
+                                profile.looking_for === 'friends' ? 'Des amis' :
+                                  'Je ne sais pas encore'}
                           </span>
                         </div>
                       </div>

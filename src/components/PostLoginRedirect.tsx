@@ -1,47 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
 
 const PostLoginRedirect: React.FC = () => {
   const navigate = useNavigate();
-  const { checkAndRedirectToProfile } = useAuth();
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     const handleRedirection = async () => {
       try {
-        const redirectTo = await checkAndRedirectToProfile();
-        
-        if (redirectTo === 'create-profile') {
-          // Utilisateur DOIT créer son profil avant d'accéder à l'app
-          navigate('/create-profile', { 
-            replace: true,
-            state: { 
-              message: 'Vous devez créer votre profil pour accéder à l\'application.',
-              required: true 
-            }
-          });
-        } else {
-          // Profil existe et est complet, accès autorisé
-          navigate('/app', { replace: true });
-        }
+        // Since profiles are now created during registration, 
+        // always redirect to dashboard after login
+        navigate('/app', { replace: true });
       } catch (error) {
-        console.error('Error during profile check:', error);
-        // En cas d'erreur, forcer la création de profil pour la sécurité
-        navigate('/create-profile', { 
-          replace: true,
-          state: { 
-            message: 'Veuillez créer votre profil pour continuer.',
-            required: true 
-          }
-        });
+        console.error('Error during post-login redirect:', error);
+        // Even on error, redirect to dashboard since profiles are created at registration
+        navigate('/app', { replace: true });
       } finally {
         setChecking(false);
       }
     };
 
     handleRedirection();
-  }, [navigate, checkAndRedirectToProfile]);
+  }, [navigate]);
 
   if (checking) {
     return (

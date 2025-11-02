@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { authService, clearTokens, profileService, setTokens } from '../services/api';
+import { authService, clearTokens, setTokens } from '../services/api';
 import type { LoginData, RegisterData, User } from '../types';
 import { handleApiError } from '../utils/apiErrorUtils';
 import { logError } from '../utils/errorUtils';
@@ -158,103 +158,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Check if user has a profile after successful login
+  // Simplified profile check - profiles are now created during registration
   const checkAndRedirectToProfile = async () => {
-    try {
-      // Try to get the user's profile
-      const profile = await profileService.getProfile();
-
-      // Vérifier que le profil est complet (au minimum first_name et last_name)
-      if (!profile || !profile.first_name || !profile.last_name) {
-        console.log('⚠️ Profil incomplet ou manquant, redirection vers création...');
-        return 'create-profile';
-      }
-
-      // Vérifier si le profil a tous les champs essentiels
-      const hasEssentialFields = !!(
-        profile.first_name &&
-        profile.last_name &&
-        (profile.bio || profile.trait) &&
-        (profile.age || profile.birthdate) &&
-        profile.height &&
-        profile.location
-      );
-
-      if (!hasEssentialFields) {
-        console.log('⚠️ Profil incomplet (champs essentiels manquants), redirection vers édition...');
-        return 'create-profile';
-      }
-
-      console.log('✅ Profil complet trouvé, accès autorisé');
-      return 'dashboard';
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        console.log('❌ Aucun profil trouvé (404), vérification des données d\'inscription...');
-
-        // Profile doesn't exist - check if we have profile data from registration to auto-create
-        const profileData = localStorage.getItem('pending_profile_data');
-
-        if (profileData) {
-          try {
-            console.log('🔄 Attempting automatic profile creation...');
-            const data = JSON.parse(profileData);
-
-            // Try to create basic profile automatically
-            await profileService.createBasicProfile(data);
-
-            console.log('✅ Basic profile created successfully!');
-
-            // Try to upload photos if they exist
-            if (data.photos && data.photos.length > 0) {
-              console.log('📸 Uploading photos...');
-              for (const photoFile of data.photos) {
-                try {
-                  // Note: This assumes photos are stored as File objects
-                  if (photoFile instanceof File) {
-                    await profileService.uploadPhoto(photoFile);
-                  }
-                } catch (photoError) {
-                  console.warn('Photo upload failed:', photoError);
-                }
-              }
-            }
-
-            // Clear the stored data after successful creation
-            localStorage.removeItem('pending_profile_data');
-
-            console.log('✅ Automatic profile creation complete!');
-
-            // Check if profile was created successfully
-            try {
-              const newProfile = await profileService.getProfile();
-              if (newProfile && newProfile.first_name && newProfile.last_name) {
-                return 'dashboard';
-              } else {
-                return 'create-profile';
-              }
-            } catch (checkError) {
-              return 'create-profile';
-            }
-
-          } catch (createError: any) {
-            logError('Automatic profile creation failed:', createError);
-            console.log('⚠️ Création automatique échouée, redirection vers création manuelle...');
-
-            // If auto-creation fails, still redirect to manual creation
-            // but keep the profile data for pre-filling the form
-            return 'create-profile';
-          }
-        }
-
-        // No profile data available - redirect to manual profile creation
-        console.log('⚠️ Aucune donnée de profil en attente, création manuelle requise...');
-        return 'create-profile';
-      }
-      // Other errors - still force profile creation for security
-      logError('Error checking profile:', error);
-      console.log('❌ Erreur lors de la vérification du profil, redirection sécurisée...');
-      return 'create-profile';
-    }
+    console.log('✅ Profils créés lors de l\'inscription - redirection directe vers dashboard');
+    return 'dashboard';
   };
 
   const value: AuthContextType = {
